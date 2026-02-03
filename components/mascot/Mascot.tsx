@@ -17,9 +17,9 @@ interface MascotProps {
 }
 
 const sizeClasses = {
-  sm: "w-24 h-24",
-  md: "w-40 h-40",
-  lg: "w-56 h-56",
+  sm: "w-16 h-16 sm:w-20 sm:h-20",
+  md: "w-24 h-24 sm:w-32 sm:h-32",
+  lg: "w-28 h-28 sm:w-36 sm:h-36 md:w-44 md:h-44",
 };
 
 // Map states to mascot images
@@ -69,17 +69,17 @@ export function Mascot({
 
   return (
     <div className={cn("relative", className)}>
-      {/* Speech Bubble */}
+      {/* Speech Bubble - positioned to the right of mascot */}
       <AnimatePresence>
         {showSpeechBubble && speechText && (
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.9 }}
-            className="absolute -top-4 left-full ml-4 -translate-y-full z-10"
+            className="absolute z-10 top-0 left-full ml-1 sm:ml-2"
           >
-            <div className="glass-card px-4 py-3 max-w-xs">
-              <p className="text-sm text-foreground">
+            <div className="glass-card px-2 py-1.5 sm:px-3 sm:py-2 w-[120px] sm:w-[150px] md:w-[170px]">
+              <p className="text-[10px] sm:text-xs md:text-sm text-foreground leading-relaxed">
                 {displayedText}
                 {isTyping && (
                   <motion.span
@@ -90,9 +90,9 @@ export function Mascot({
                   </motion.span>
                 )}
               </p>
-              {/* Speech bubble pointer */}
-              <div className="absolute bottom-0 left-8 translate-y-full">
-                <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-[var(--card)]" />
+              {/* Speech bubble pointer - points left toward mascot */}
+              <div className="absolute top-4 sm:top-5 -left-2">
+                <div className="w-0 h-0 border-t-[5px] border-b-[5px] border-r-[6px] border-t-transparent border-b-transparent border-r-[var(--card)]" />
               </div>
             </div>
           </motion.div>

@@ -10,9 +10,9 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="app-container min-h-screen flex flex-col">
+    <div className="app-container h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="relative z-10 p-4">
+      <header className="relative z-10 p-4 flex-shrink-0">
         <Link href="/" className="flex items-center gap-2">
           <motion.div
             className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center"
@@ -25,9 +25,11 @@ export default function AuthLayout({
         </Link>
       </header>
 
-      {/* Content */}
-      <main className="relative z-10 flex-1 flex flex-col justify-center px-4 pb-8">
-        {children}
+      {/* Content - scrollable when needed */}
+      <main className="relative z-10 flex-1 min-h-0 overflow-y-auto px-4 py-6">
+        <div className="flex flex-col justify-center min-h-full">
+          {children}
+        </div>
       </main>
 
       {/* Decorative background */}

@@ -41,7 +41,7 @@
     --active-icon-color: #fbbf24;
 
     /* Space reserved so content never goes under the fixed bottom nav */
-    --bottom-nav-clearance: 140px;
+    --bottom-nav-clearance: 100px;
   }
 
   /* Pink Pastel Theme */

@@ -245,33 +245,36 @@ export default function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col items-center justify-center px-4 text-center"
+            className="flex-1 flex flex-col items-center justify-center px-3 text-center overflow-hidden"
           >
-            <Mascot
-              state={mascotState}
-              size="lg"
-              showSpeechBubble={true}
-              speechText={
-                userName
-                  ? `${greeting}, ${userName}! How are you feeling today?`
-                  : `${greeting}! Welcome to Soul Sync. How are you feeling today?`
-              }
-            />
+            {/* Mascot and speech bubble row - mascot on left, bubble on right */}
+            <div className="relative flex items-start justify-start w-full max-w-xs sm:max-w-sm mx-auto mb-3 sm:mb-4">
+              <Mascot
+                state={mascotState}
+                size="lg"
+                showSpeechBubble={true}
+                speechText={
+                  userName
+                    ? `${greeting}, ${userName}! How are you feeling today?`
+                    : `${greeting}! Welcome to Soul Sync. How are you feeling today?`
+                }
+              />
+            </div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="mt-4 sm:mt-8 px-4"
+              className="w-full max-w-xs sm:max-w-sm px-2"
             >
-              <h1 className="text-xl sm:text-2xl font-bold mb-2">Sync Your Soul</h1>
-              <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold mb-1">Sync Your Soul</h1>
+              <p className="text-[11px] sm:text-xs md:text-sm text-muted-foreground mb-3 sm:mb-4">
                 Tell us how you're feeling to get personalized content
               </p>
 
               <motion.button
                 onClick={() => setShowMoodSelector(true)}
-                className="px-5 sm:px-8 py-2.5 sm:py-4 rounded-full bg-gradient-to-r from-primary to-accent text-white font-semibold text-sm sm:text-lg shadow-lg shadow-primary/25"
+                className="px-5 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-4 rounded-full bg-gradient-to-r from-primary to-accent text-white font-semibold text-sm sm:text-base md:text-lg shadow-lg shadow-primary/25"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 animate={{
@@ -318,7 +321,7 @@ export default function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col overflow-x-hidden"
+            className="flex-1 flex flex-col overflow-hidden"
           >
             {/* Header with mood badge */}
             <div className="px-2 sm:px-4 mb-2 sm:mb-4 flex items-center gap-2 sm:gap-3">
@@ -329,7 +332,7 @@ export default function HomePage() {
             </div>
 
             {/* Mood-specific cards carousel */}
-            <div className="flex-1 flex flex-col justify-center overflow-x-hidden">
+            <div className="flex-1 flex flex-col justify-center overflow-hidden">
               <MoodCarousel cards={sampleMoodCards} />
             </div>
           </motion.div>
