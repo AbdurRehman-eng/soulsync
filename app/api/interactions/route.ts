@@ -44,12 +44,15 @@ export async function POST(request: NextRequest) {
 
       if (existing) {
         // Unlike - delete the interaction
+        console.log(`[Interactions API] Unliking card ${card_id} for user ${user.id}`);
         await supabase
           .from("card_interactions")
           .delete()
           .eq("id", existing.id);
 
-        return NextResponse.json({ liked: false });
+        return NextResponse.json({ success: true, liked: false });
+      } else {
+        console.log(`[Interactions API] Liking card ${card_id} for user ${user.id}`);
       }
     }
 
@@ -159,6 +162,8 @@ export async function GET(request: NextRequest) {
     const cards = interactions
       ?.map((i) => i.card)
       .filter((c) => c !== null);
+
+    console.log(`[Interactions API] GET request - returning ${cards?.length || 0} ${type} interactions for user ${user.id}`);
 
     return NextResponse.json({ cards });
   } catch (error) {

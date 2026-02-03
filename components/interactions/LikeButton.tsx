@@ -18,15 +18,13 @@ export function LikeButton({
   showCount = false,
   count = 0,
 }: LikeButtonProps) {
-  const [liked, setLiked] = useState(isLiked);
   const [hearts, setHearts] = useState<number[]>([]);
 
   const handleLike = () => {
-    const newLiked = !liked;
-    setLiked(newLiked);
+    const willBeLiked = !isLiked;
     onLike?.();
 
-    if (newLiked) {
+    if (willBeLiked) {
       // Spawn floating hearts
       const newHearts = Array.from({ length: 5 }, () => Date.now() + Math.random());
       setHearts((prev) => [...prev, ...newHearts]);
@@ -47,18 +45,18 @@ export function LikeButton({
         whileHover={{ scale: 1.05 }}
       >
         <motion.div
-          animate={liked ? { scale: [1, 1.3, 1] } : {}}
+          animate={isLiked ? { scale: [1, 1.3, 1] } : {}}
           transition={{ duration: 0.3 }}
         >
           <Heart
             className={cn(
               "w-5 h-5 sm:w-6 sm:h-6 transition-colors duration-200",
-              liked ? "fill-red-500 text-red-500" : "text-white/70"
+              isLiked ? "fill-red-500 text-red-500" : "text-white/70"
             )}
           />
         </motion.div>
         {showCount && (
-          <span className="absolute -bottom-1 -right-1 text-xs font-medium bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">{count + (liked && !isLiked ? 1 : 0)}</span>
+          <span className="absolute -bottom-1 -right-1 text-xs font-medium bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">{count}</span>
         )}
       </motion.button>
 

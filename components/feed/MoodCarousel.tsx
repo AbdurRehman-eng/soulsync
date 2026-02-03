@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { FeedCard } from "@/components/cards/FeedCard";
 import { VerticalProgressDots } from "./VerticalProgressDots";
 import type { Card } from "@/types";
@@ -15,6 +15,25 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
   const [likedCards, setLikedCards] = useState<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Fetch liked cards on mount to show correct like state
+  useEffect(() => {
+    fetchLikedCards();
+  }, []);
+
+  const fetchLikedCards = async () => {
+    try {
+      const response = await fetch("/api/interactions?type=like&limit=500");
+      if (response.ok) {
+        const data = await response.json();
+        const likedCardIds = new Set(data.cards?.map((c: Card) => c.id) || []);
+        console.log(`[MoodCarousel] Loaded ${likedCardIds.size} liked cards`);
+        setLikedCards(likedCardIds);
+      }
+    } catch (error) {
+      console.error("[MoodCarousel] Failed to fetch liked cards:", error);
+    }
+  };
 
   // Set up Intersection Observer for scroll tracking
   useEffect(() => {
@@ -45,7 +64,8 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
     };
   }, [cards]);
 
-  const handleLike = (cardId: string) => {
+  const handleLike = useCallback((cardId: string) => {
+    // Update local state immediately for responsive UI
     setLikedCards((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(cardId)) {
@@ -55,16 +75,31 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
       }
       return newSet;
     });
-  };
 
-  const handleShare = (cardId: string) => {
+    // Persist to API
+    fetch("/api/interactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ card_id: cardId, type: "like" }),
+    }).catch(console.error);
+  }, []);
+
+  const handleShare = useCallback((cardId: string) => {
     // API call to track share
     fetch("/api/interactions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ card_id: cardId, type: "share" }),
     }).catch(console.error);
-  };
+  }, []);
+
+  const handleView = useCallback((cardId: string) => {
+    fetch("/api/interactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ card_id: cardId, type: "view" }),
+    }).catch(console.error);
+  }, []);
 
   return (
     <div className="relative flex-1 flex flex-col">
@@ -83,6 +118,7 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
               isLiked={likedCards.has(card.id)}
               onLike={() => handleLike(card.id)}
               onShare={() => handleShare(card.id)}
+              onView={() => handleView(card.id)}
             />
           </div>
         ))}

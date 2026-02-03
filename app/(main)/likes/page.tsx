@@ -26,10 +26,13 @@ export default function LikesPage() {
       const response = await fetch("/api/interactions?type=like");
       if (response.ok) {
         const data = await response.json();
+        console.log(`[Likes Page] Loaded ${data.cards?.length || 0} liked cards`);
         setLikedCards(data.cards || []);
+      } else {
+        console.error("[Likes Page] Failed to fetch:", response.status);
       }
     } catch (error) {
-      console.error("Failed to fetch liked cards:", error);
+      console.error("[Likes Page] Failed to fetch liked cards:", error);
     } finally {
       setLoading(false);
     }
@@ -103,7 +106,23 @@ export default function LikesPage() {
               transition={{ delay: index * 0.05 }}
               className="h-[300px]"
             >
-              <FeedCard card={card} index={index} isLiked={true} />
+              <FeedCard
+                card={card}
+                index={index}
+                isLiked={true}
+                onLike={() => {
+                  // Remove from liked cards when unliked
+                  console.log(`[Likes Page] Unliking card: ${card.id}`);
+                  setLikedCards((prev) => prev.filter((c) => c.id !== card.id));
+                  
+                  // Call API to persist the unlike
+                  fetch("/api/interactions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ card_id: card.id, type: "like" }),
+                  }).catch(console.error);
+                }}
+              />
             </motion.div>
           ))}
         </div>

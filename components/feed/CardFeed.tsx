@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { FeedCard } from "@/components/cards/FeedCard";
 import { FeedSkeleton } from "./FeedSkeleton";
 import { VerticalProgressDots } from "./VerticalProgressDots";
+import { useMoodStore } from "@/stores/moodStore";
 import type { Card } from "@/types";
 
 interface CardFeedProps {
@@ -18,12 +19,34 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Fetch cards on mount if none provided
+  // Get current mood from store
+  const { currentMood } = useMoodStore();
+
+  // Fetch liked cards on mount to show correct like state
+  useEffect(() => {
+    fetchLikedCards();
+  }, []);
+
+  const fetchLikedCards = async () => {
+    try {
+      const response = await fetch("/api/interactions?type=like&limit=500");
+      if (response.ok) {
+        const data = await response.json();
+        const likedCardIds = new Set(data.cards?.map((c: Card) => c.id) || []);
+        console.log(`[CardFeed] Loaded ${likedCardIds.size} liked cards`);
+        setLikedCards(likedCardIds);
+      }
+    } catch (error) {
+      console.error("[CardFeed] Failed to fetch liked cards:", error);
+    }
+  };
+
+  // Fetch cards on mount and when mood changes
   useEffect(() => {
     if (initialCards.length === 0) {
       fetchCards();
     }
-  }, []);
+  }, [currentMood?.id]); // Re-fetch when mood changes
 
   // Set up Intersection Observer for scroll tracking
   useEffect(() => {
@@ -63,13 +86,22 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
   const fetchCards = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/feed");
+      // Build URL with mood parameter if mood is selected
+      const url = new URL('/api/feed', window.location.origin);
+      if (currentMood?.id) {
+        url.searchParams.set('mood_id', currentMood.id);
+      }
+
+      const response = await fetch(url.toString());
       if (response.ok) {
         const data = await response.json();
+        console.log(`[CardFeed] Received ${data.cards?.length || 0} cards from API`, data.cards);
         setCards(data.cards);
+      } else {
+        console.error("[CardFeed] API returned error:", response.status, response.statusText);
       }
     } catch (error) {
-      console.error("Failed to fetch cards:", error);
+      console.error("[CardFeed] Failed to fetch cards:", error);
     } finally {
       setLoading(false);
     }

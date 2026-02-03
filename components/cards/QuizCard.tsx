@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { HelpCircle, Trophy, Info, ChevronRight } from "lucide-react";
+import { HelpCircle, Trophy, Info, ChevronRight, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Card, Quiz, QuizQuestion } from "@/types";
 
@@ -50,6 +50,9 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
     fetchQuizData();
   }, [card.id]);
 
+  // Calculate estimated time (assume 30 seconds per question)
+  const estimatedTime = Math.ceil((questions.length * 30) / 60);
+
   return (
     <div className="min-h-full flex flex-col overflow-hidden">
       {/* Header */}
@@ -90,7 +93,7 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
           <div className="text-sm text-muted-foreground">Loading quiz...</div>
         </div>
       ) : !isStarted ? (
-        <div className="flex-1 flex flex-col justify-center items-center text-center min-h-0">
+        <div className="flex-1 flex flex-col justify-center items-center text-center min-h-0 px-2">
           {/* Trophy icon */}
           <motion.div
             className="w-14 sm:w-16 h-14 sm:h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-3"
@@ -103,32 +106,55 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
           {/* Title */}
           <h3 className="text-base sm:text-lg font-bold mb-1">{card.title}</h3>
           {card.subtitle && (
-            <p className="text-xs sm:text-sm text-muted-foreground mb-2">{card.subtitle}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mb-3 max-w-xs">
+              {card.subtitle}
+            </p>
           )}
 
           {/* Quiz info */}
           {questions.length > 0 && (
-            <div className="mb-2 text-xs text-muted-foreground">
-              {questions.length} {questions.length === 1 ? "question" : "questions"}
-              {quiz?.difficulty && ` • ${quiz.difficulty}`}
+            <div className="glass-card p-3 mb-3 w-full max-w-xs">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">{questions.length}</span>{" "}
+                  {questions.length === 1 ? "question" : "questions"}
+                </div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="w-3 h-3" />
+                  <span>{estimatedTime} min</span>
+                </div>
+              </div>
+
+              {quiz?.difficulty && (
+                <div className="text-xs">
+                  <span className="text-muted-foreground">Difficulty: </span>
+                  <span className={`font-medium ${
+                    quiz.difficulty === 'easy' ? 'text-green-500' :
+                    quiz.difficulty === 'medium' ? 'text-yellow-500' :
+                    'text-red-500'
+                  }`}>
+                    {quiz.difficulty.charAt(0).toUpperCase() + quiz.difficulty.slice(1)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
           {/* Points indicator */}
           {card.points_reward > 0 && (
-            <div className="mb-2 px-3 py-1 rounded-full bg-accent/20 text-accent text-xs font-medium">
-              +{card.points_reward} pts
+            <div className="mb-3 px-3 py-1.5 rounded-full bg-accent/20 text-accent text-xs font-medium">
+              Earn +{card.points_reward} pts
             </div>
           )}
 
-          {/* Start button */}
+          {/* Take Quiz button */}
           <motion.button
             onClick={() => setIsStarted(true)}
-            disabled={questions.length === 0}
-            className="flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={questions.length === 0 || isLocked}
+            className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             whileTap={{ scale: 0.95 }}
           >
-            Start
+            Take Quiz
             <ChevronRight className="w-4 h-4" />
           </motion.button>
         </div>

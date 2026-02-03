@@ -14,9 +14,9 @@ export async function GET(request: NextRequest) {
 
     // Get user's current mood from query or profile
     const searchParams = request.nextUrl.searchParams;
-    const moodId = searchParams.get("mood_id");
+    let moodId = searchParams.get("mood_id");
 
-    // Get user's membership level
+    // Get user's membership level and last mood
     let membershipLevel = 1;
     if (user) {
       const { data: profile } = await supabase
@@ -28,12 +28,29 @@ export async function GET(request: NextRequest) {
       if (profile) {
         membershipLevel = profile.membership_level;
       }
+
+      // If mood is provided, log it to mood_logs
+      if (moodId) {
+        await supabase.from("mood_logs").insert({
+          user_id: user.id,
+          mood_id: moodId,
+        });
+
+        // Update profile's last_mood_sync
+        await supabase
+          .from("profiles")
+          .update({ last_mood_sync: new Date().toISOString() })
+          .eq("id", user.id);
+      }
     }
 
     // Check if we have a cached daily feed for this user
+    // NOTE: Cache is currently global per day, not mood-specific
+    // This means if user changes mood, cache is cleared and regenerated
     const today = new Date().toISOString().split("T")[0];
 
-    if (user) {
+    if (user && moodId) {
+      // Check for mood-specific cache
       const { data: cachedFeed } = await supabase
         .from("daily_feed")
         .select("*, card:cards(*)")
@@ -42,11 +59,14 @@ export async function GET(request: NextRequest) {
         .order("position", { ascending: true });
 
       if (cachedFeed && cachedFeed.length > 0) {
+        console.log(`[FEED API] Returning ${cachedFeed.length} cached cards from daily_feed table`);
         const cards = cachedFeed
           .map((item) => item.card)
           .filter((card): card is Card => card !== null);
 
         return NextResponse.json({ cards });
+      } else {
+        console.log("[FEED API] No cached feed found, generating new feed");
       }
     }
 
@@ -85,8 +105,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    console.log(`[FEED API] Fetched ${allCards?.length || 0} cards from database`);
+
     // Filter and sort cards
     let feedCards = allCards || [];
+
+    if (feedCards.length === 0) {
+      console.log("[FEED API] No active cards found in database");
+      return NextResponse.json({ cards: [] });
+    }
 
     // If mood is specified, prioritize mood-relevant cards
     if (moodId) {
@@ -122,8 +149,20 @@ export async function GET(request: NextRequest) {
     // Limit to 20 cards
     finalCards = finalCards.slice(0, 20);
 
-    // Cache the feed for logged-in users
-    if (user && finalCards.length > 0) {
+    console.log(`[FEED API] Returning ${finalCards.length} cards to client (after mood sorting and shuffling)`);
+
+    // Cache the feed for logged-in users (only if mood is selected)
+    // This prevents caching general feeds and ensures mood-specific caching
+    if (user && moodId && finalCards.length > 0) {
+      console.log(`[FEED API] Caching ${finalCards.length} cards to daily_feed table`);
+
+      // Clear existing cache for today
+      await supabase
+        .from("daily_feed")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("feed_date", today);
+
       const feedItems = finalCards.map((card, index) => ({
         user_id: user.id,
         card_id: card.id,

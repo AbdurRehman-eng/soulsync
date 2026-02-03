@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMoodStore } from "@/stores/moodStore";
 import { useUserStore } from "@/stores/userStore";
@@ -9,195 +9,9 @@ import { MoodSelector } from "@/components/mood/MoodSelector";
 import { MoodBadge } from "@/components/mood/MoodBadge";
 import { MoodCarousel } from "@/components/feed/MoodCarousel";
 import { CardFeed } from "@/components/feed/CardFeed";
+import { FeedSkeleton } from "@/components/feed/FeedSkeleton";
 import { getGreeting } from "@/lib/utils";
 import type { Card } from "@/types";
-
-// Sample cards for demo - in production, these come from the API
-const sampleMoodCards: Card[] = [
-  {
-    id: "verse-1",
-    type: "verse",
-    title: "Today's Verse",
-    subtitle: null,
-    content: {
-      verse_text:
-        "For I know the plans I have for you, declares the Lord, plans to prosper you and not to harm you, plans to give you hope and a future.",
-      verse_reference: "Jeremiah 29:11",
-    },
-    thumbnail_url: null,
-    background_url: null,
-    min_membership_level: 1,
-    points_reward: 5,
-    is_active: true,
-    is_pinned: false,
-    pin_position: null,
-    pin_start: null,
-    pin_end: null,
-    publish_date: null,
-    sort_order: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "devotional-1",
-    type: "devotional",
-    title: "Finding Peace in Uncertainty",
-    subtitle: "A moment of reflection",
-    content: {
-      body: "In times of uncertainty, it's easy to feel overwhelmed. But remember, every storm eventually passes. Take a deep breath, center yourself in faith, and trust that you are being guided toward better days. Your current situation is not your final destination.",
-      author: "Soul Sync Team",
-      read_time: 2,
-    },
-    thumbnail_url: null,
-    background_url: null,
-    min_membership_level: 1,
-    points_reward: 10,
-    is_active: true,
-    is_pinned: false,
-    pin_position: null,
-    pin_start: null,
-    pin_end: null,
-    publish_date: null,
-    sort_order: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "prayer-1",
-    type: "prayer",
-    title: "Morning Prayer",
-    subtitle: null,
-    content: {
-      prayer_text:
-        "Dear Lord, thank you for this new day. Guide my thoughts, words, and actions. Help me to be a light to others and to walk in your ways. Give me strength to face whatever comes my way, and remind me that I am never alone.",
-    },
-    thumbnail_url: null,
-    background_url: null,
-    min_membership_level: 1,
-    points_reward: 5,
-    is_active: true,
-    is_pinned: false,
-    pin_position: null,
-    pin_start: null,
-    pin_end: null,
-    publish_date: null,
-    sort_order: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
-const sampleFeedCards: Card[] = [
-  ...sampleMoodCards,
-  {
-    id: "motivational-1",
-    type: "motivational",
-    title: "Daily Inspiration",
-    subtitle: null,
-    content: {
-      quote:
-        "The only way to do great work is to love what you do. If you haven't found it yet, keep looking. Don't settle.",
-      quote_author: "Steve Jobs",
-    },
-    thumbnail_url: null,
-    background_url: null,
-    min_membership_level: 1,
-    points_reward: 5,
-    is_active: true,
-    is_pinned: false,
-    pin_position: null,
-    pin_start: null,
-    pin_end: null,
-    publish_date: null,
-    sort_order: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "quiz-1",
-    type: "quiz",
-    title: "Test Your Faith Knowledge",
-    subtitle: "A fun quiz to test what you know",
-    content: {},
-    thumbnail_url: null,
-    background_url: null,
-    min_membership_level: 1,
-    points_reward: 20,
-    is_active: true,
-    is_pinned: false,
-    pin_position: null,
-    pin_start: null,
-    pin_end: null,
-    publish_date: null,
-    sort_order: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "task-1",
-    type: "task",
-    title: "Practice Gratitude",
-    subtitle: "Write down 3 things you're grateful for today",
-    content: {},
-    thumbnail_url: null,
-    background_url: null,
-    min_membership_level: 1,
-    points_reward: 15,
-    is_active: true,
-    is_pinned: false,
-    pin_position: null,
-    pin_start: null,
-    pin_end: null,
-    publish_date: null,
-    sort_order: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "game-1",
-    type: "game",
-    title: "Calm Orbs",
-    subtitle: "A relaxing mini game",
-    content: {},
-    thumbnail_url: null,
-    background_url: null,
-    min_membership_level: 1,
-    points_reward: 25,
-    is_active: true,
-    is_pinned: false,
-    pin_position: null,
-    pin_start: null,
-    pin_end: null,
-    publish_date: null,
-    sort_order: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "article-1",
-    type: "article",
-    title: "5 Ways to Start Your Day Right",
-    subtitle: "Morning routines for a positive mindset",
-    content: {
-      body: "Starting your day with intention can transform your entire outlook. Here are five simple practices that can help you begin each morning with purpose and positivity...",
-      author: "Soul Sync Team",
-      read_time: 4,
-    },
-    thumbnail_url: null,
-    background_url: null,
-    min_membership_level: 1,
-    points_reward: 10,
-    is_active: true,
-    is_pinned: false,
-    pin_position: null,
-    pin_start: null,
-    pin_end: null,
-    publish_date: null,
-    sort_order: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
 
 export default function HomePage() {
   const { isSynced, currentMood } = useMoodStore();
@@ -207,9 +21,44 @@ export default function HomePage() {
   const [mascotState, setMascotState] = useState<"idle" | "power-up" | "happy">(
     "idle"
   );
+  const [moodCards, setMoodCards] = useState<Card[]>([]);
+  const [loadingCards, setLoadingCards] = useState(false);
 
   const greeting = getGreeting();
   const userName = profile?.display_name || profile?.username;
+
+  // Fetch cards from API when mood is synced
+  const fetchMoodCards = useCallback(async () => {
+    if (!isSynced) return;
+    
+    setLoadingCards(true);
+    try {
+      const url = new URL('/api/feed', window.location.origin);
+      if (currentMood?.id) {
+        url.searchParams.set('mood_id', currentMood.id);
+      }
+      
+      const response = await fetch(url.toString());
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[HomePage] Received ${data.cards?.length || 0} cards from API`);
+        setMoodCards(data.cards || []);
+      } else {
+        console.error("[HomePage] API returned error:", response.status);
+      }
+    } catch (error) {
+      console.error("[HomePage] Failed to fetch cards:", error);
+    } finally {
+      setLoadingCards(false);
+    }
+  }, [isSynced, currentMood?.id]);
+
+  // Fetch cards when mood changes or becomes synced
+  useEffect(() => {
+    if (isSynced) {
+      fetchMoodCards();
+    }
+  }, [isSynced, currentMood?.id, fetchMoodCards]);
 
   // Power up mascot animation on mount
   useEffect(() => {
@@ -311,7 +160,7 @@ export default function HomePage() {
 
             {/* Add top padding to account for fixed mood badge */}
             <div className="pt-16">
-              <CardFeed initialCards={sampleFeedCards} />
+              <CardFeed />
             </div>
           </motion.div>
         ) : (
@@ -333,7 +182,18 @@ export default function HomePage() {
 
             {/* Mood-specific cards carousel */}
             <div className="flex-1 flex flex-col justify-center overflow-hidden">
-              <MoodCarousel cards={sampleMoodCards} />
+              {loadingCards ? (
+                <FeedSkeleton />
+              ) : moodCards.length > 0 ? (
+                <MoodCarousel cards={moodCards} />
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
+                  <p className="text-lg font-semibold mb-2">No cards available</p>
+                  <p className="text-muted-foreground text-sm">
+                    Check back later for new content
+                  </p>
+                </div>
+              )}
             </div>
           </motion.div>
         )}

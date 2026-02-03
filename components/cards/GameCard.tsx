@@ -136,26 +136,39 @@ export function GameCard({ card, isLocked }: GameCardProps) {
               <p className="text-xs sm:text-sm text-muted-foreground mb-2">{card.subtitle}</p>
             )}
 
-            {/* Instructions */}
-            <div className="glass-card p-2 mb-2 text-xs text-muted-foreground flex items-start gap-1 text-left max-w-xs">
-              <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-              <span>{gameData.instructions || "Tap objects to score points!"}</span>
+            {/* Description */}
+            <div className="glass-card p-3 mb-3 text-xs text-muted-foreground text-left max-w-xs">
+              <div className="flex items-start gap-2 mb-2">
+                <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                <span>{gameData.instructions || "Tap objects to score points!"}</span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-muted-foreground">Target: </span>
+                  <span className="font-semibold text-foreground">{gameData.ar_config.targetScore} pts</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Time: </span>
+                  <span className="font-semibold text-foreground">{gameData.ar_config.gameTime}s</span>
+                </div>
+              </div>
             </div>
 
-            {/* Play button */}
+            {/* Play Now button */}
             <motion.button
               onClick={() => setIsPlaying(true)}
               disabled={isLocked}
-              className="flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
               whileTap={{ scale: 0.95 }}
             >
               <Play className="w-4 h-4" />
-              Play AR Game
+              Play Now
             </motion.button>
 
             {/* Difficulty badge */}
             <div className="mt-2 px-2 py-1 rounded-full bg-muted/50 text-xs text-muted-foreground">
-              {gameData.difficulty?.charAt(0).toUpperCase() + gameData.difficulty?.slice(1)}
+              {gameData.difficulty?.charAt(0).toUpperCase() + gameData.difficulty?.slice(1)} Difficulty
             </div>
           </div>
         </div>
@@ -215,21 +228,23 @@ export function GameCard({ card, isLocked }: GameCardProps) {
             <p className="text-xs sm:text-sm text-muted-foreground mb-2">{card.subtitle}</p>
           )}
 
-          {/* Instructions */}
-          <div className="glass-card p-2 mb-2 text-xs text-muted-foreground flex items-start gap-1 text-left">
-            <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-            <span>{gameData?.instructions || "Play to earn points!"}</span>
+          {/* Description */}
+          <div className="glass-card p-3 mb-3 text-xs text-muted-foreground text-left max-w-xs">
+            <div className="flex items-start gap-2">
+              <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
+              <span>{gameData?.instructions || "Play to earn points!"}</span>
+            </div>
           </div>
 
-          {/* Play button */}
+          {/* Play Now button */}
           <motion.button
             onClick={() => setIsPlaying(true)}
             disabled={isLocked || loading}
-            className="flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             whileTap={{ scale: 0.95 }}
           >
             <Play className="w-4 h-4" />
-            {loading ? "Loading..." : "Play"}
+            {loading ? "Loading..." : "Play Now"}
           </motion.button>
         </div>
       ) : (
