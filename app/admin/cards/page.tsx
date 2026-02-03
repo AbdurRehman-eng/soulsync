@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardType } from "@/types";
-import { Plus, Edit2, Trash2, Loader2, Search, Eye, Sparkles } from "lucide-react";
+import { Plus, Edit2, Trash2, Loader2, Search, Eye, Sparkles, Gamepad2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { CardFormModal } from "../components/CardFormModal";
 import { QuizGeneratorModal } from "../components/QuizGeneratorModal";
+import { ARGameGeneratorModal } from "../components/ARGameGeneratorModal";
 import {
   DndContext,
   closestCenter,
@@ -155,6 +156,7 @@ export default function ContentPage() {
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [viewCard, setViewCard] = useState<Card | null>(null);
   const [showQuizGenerator, setShowQuizGenerator] = useState(false);
+  const [showARGameGenerator, setShowARGameGenerator] = useState(false);
   const supabase = createClient();
 
   const sensors = useSensors(
@@ -319,6 +321,13 @@ export default function ContentPage() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+          <button
+            onClick={() => setShowARGameGenerator(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:opacity-90 text-white rounded-xl transition-opacity shadow-lg w-full sm:w-auto"
+          >
+            <Gamepad2 size={20} />
+            AR Game Generator
+          </button>
           <button
             onClick={() => setShowQuizGenerator(true)}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-xl transition-opacity shadow-lg w-full sm:w-auto"
@@ -532,6 +541,13 @@ export default function ContentPage() {
       <QuizGeneratorModal
         isOpen={showQuizGenerator}
         onClose={() => setShowQuizGenerator(false)}
+        onSuccess={handleSuccess}
+      />
+
+      {/* AR Game Generator Modal */}
+      <ARGameGeneratorModal
+        isOpen={showARGameGenerator}
+        onClose={() => setShowARGameGenerator(false)}
         onSuccess={handleSuccess}
       />
 

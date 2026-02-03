@@ -171,6 +171,27 @@ export interface QuizQuestion {
   created_at: string;
 }
 
+export type ARGameType =
+  | "balloon_pop"
+  | "target_tap"
+  | "catch_game"
+  | "memory_match"
+  | "reaction_time"
+  | "spatial_puzzle";
+
+export interface ARGameConfig {
+  objectType: "balloon" | "target" | "coin" | "star" | "gift" | "heart";
+  objectColor: string;
+  spawnRate: number; // 1-10
+  gameTime: number; // seconds
+  targetScore: number;
+  difficulty: "easy" | "medium" | "hard";
+  soundEnabled: boolean;
+  hapticEnabled: boolean;
+  theme: "colorful" | "minimal" | "nature" | "spiritual";
+  specialEffects: string[]; // ["particles", "trails", "glow"]
+}
+
 export interface Game {
   id: string;
   card_id: string;
@@ -178,6 +199,9 @@ export interface Game {
   difficulty: "easy" | "medium" | "hard";
   instructions: string | null;
   max_score: number | null;
+  is_ar_game: boolean;
+  ar_type: ARGameType | null;
+  ar_config: ARGameConfig | null;
   created_at: string;
 }
 

@@ -2,8 +2,11 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Gamepad2, Play, X, Info } from "lucide-react";
-import type { Card } from "@/types";
+import { Gamepad2, Play, X, Info, Sparkles } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { ARGameViewer } from "@/components/ARGameViewer";
+import type { Card, Game } from "@/types";
+import { toast } from "react-hot-toast";
 
 interface GameCardProps {
   card: Card;
@@ -13,7 +16,71 @@ interface GameCardProps {
 export function GameCard({ card, isLocked }: GameCardProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
+  const [gameData, setGameData] = useState<Game | null>(null);
+  const [loading, setLoading] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const supabase = createClient();
+
+  // Fetch game data on mount
+  useEffect(() => {
+    fetchGameData();
+  }, [card.id]);
+
+  const fetchGameData = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("games")
+        .select("*")
+        .eq("card_id", card.id)
+        .single();
+
+      if (error) throw error;
+      setGameData(data);
+    } catch (error) {
+      console.error("Failed to fetch game data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGameComplete = async (finalScore: number) => {
+    setScore(finalScore);
+    setIsPlaying(false);
+
+    // Award points to user
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        // Record interaction
+        await supabase.from("card_interactions").insert({
+          user_id: user.id,
+          card_id: card.id,
+          interaction_type: "complete",
+        });
+
+        // Award points
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("points")
+          .eq("id", user.id)
+          .single();
+
+        if (profile) {
+          await supabase
+            .from("profiles")
+            .update({ points: profile.points + card.points_reward })
+            .eq("id", user.id);
+
+          toast.success(`You earned ${card.points_reward} points!`, {
+            icon: "🎉",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to award points:", error);
+    }
+  };
 
   // Handle messages from the game iframe
   useEffect(() => {
@@ -22,8 +89,7 @@ export function GameCard({ card, isLocked }: GameCardProps) {
         setScore(event.data.score);
       }
       if (event.data.type === "GAME_COMPLETE") {
-        // Handle game completion - award points, etc.
-        setIsPlaying(false);
+        handleGameComplete(event.data.score);
       }
     };
 
@@ -31,6 +97,85 @@ export function GameCard({ card, isLocked }: GameCardProps) {
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
+  // Show AR Game Viewer if this is an AR game
+  if (gameData?.is_ar_game && gameData.ar_type && gameData.ar_config) {
+    return (
+      <>
+        <div className="min-h-full flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-blue-500/20">
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+              </div>
+              <span className="text-xs sm:text-sm font-medium text-blue-500">AR Game</span>
+            </div>
+            {score > 0 && (
+              <div className="px-2 py-1 rounded-full bg-accent/20 text-accent text-xs font-medium">
+                {score}
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 flex flex-col justify-center items-center text-center min-h-0">
+            {/* Game icon */}
+            <motion.div
+              className="w-14 sm:w-18 h-14 sm:h-18 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-3"
+              animate={{
+                rotate: [0, 5, -5, 0],
+                scale: [1, 1.02, 1],
+              }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              <Sparkles className="w-7 sm:w-9 h-7 sm:h-9 text-white" />
+            </motion.div>
+
+            {/* Title */}
+            <h3 className="text-base sm:text-lg font-bold mb-1">{card.title}</h3>
+            {card.subtitle && (
+              <p className="text-xs sm:text-sm text-muted-foreground mb-2">{card.subtitle}</p>
+            )}
+
+            {/* Instructions */}
+            <div className="glass-card p-2 mb-2 text-xs text-muted-foreground flex items-start gap-1 text-left max-w-xs">
+              <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
+              <span>{gameData.instructions || "Tap objects to score points!"}</span>
+            </div>
+
+            {/* Play button */}
+            <motion.button
+              onClick={() => setIsPlaying(true)}
+              disabled={isLocked}
+              className="flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              whileTap={{ scale: 0.95 }}
+            >
+              <Play className="w-4 h-4" />
+              Play AR Game
+            </motion.button>
+
+            {/* Difficulty badge */}
+            <div className="mt-2 px-2 py-1 rounded-full bg-muted/50 text-xs text-muted-foreground">
+              {gameData.difficulty?.charAt(0).toUpperCase() + gameData.difficulty?.slice(1)}
+            </div>
+          </div>
+        </div>
+
+        {/* AR Game Viewer */}
+        <ARGameViewer
+          isOpen={isPlaying}
+          onClose={() => setIsPlaying(false)}
+          title={card.title}
+          instructions={gameData.instructions || "Tap objects to score points!"}
+          arType={gameData.ar_type}
+          arConfig={gameData.ar_config}
+          maxScore={gameData.max_score || 200}
+          onGameComplete={handleGameComplete}
+        />
+      </>
+    );
+  }
+
+  // Regular HTML game
   return (
     <div className="min-h-full flex flex-col overflow-hidden">
       {/* Header */}
@@ -39,7 +184,9 @@ export function GameCard({ card, isLocked }: GameCardProps) {
           <div className="p-1.5 sm:p-2 rounded-lg bg-orange-500/20">
             <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
           </div>
-          <span className="text-xs sm:text-sm font-medium text-orange-500">Mini Game</span>
+          <span className="text-xs sm:text-sm font-medium text-orange-500">
+            {loading ? "Loading..." : "Mini Game"}
+          </span>
         </div>
         {score > 0 && (
           <div className="px-2 py-1 rounded-full bg-accent/20 text-accent text-xs font-medium">
@@ -71,17 +218,18 @@ export function GameCard({ card, isLocked }: GameCardProps) {
           {/* Instructions */}
           <div className="glass-card p-2 mb-2 text-xs text-muted-foreground flex items-start gap-1 text-left">
             <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-            <span>Play to earn points!</span>
+            <span>{gameData?.instructions || "Play to earn points!"}</span>
           </div>
 
           {/* Play button */}
           <motion.button
             onClick={() => setIsPlaying(true)}
-            className="flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm font-semibold"
+            disabled={isLocked || loading}
+            className="flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             whileTap={{ scale: 0.95 }}
           >
             <Play className="w-4 h-4" />
-            Play
+            {loading ? "Loading..." : "Play"}
           </motion.button>
         </div>
       ) : (
@@ -98,7 +246,7 @@ export function GameCard({ card, isLocked }: GameCardProps) {
           <div className="flex-1 rounded-xl overflow-hidden bg-black">
             <iframe
               ref={iframeRef}
-              srcDoc={getGameHTML()}
+              srcDoc={gameData?.html_content || getGameHTML()}
               sandbox="allow-scripts"
               className="w-full h-full border-0"
               title={card.title}
