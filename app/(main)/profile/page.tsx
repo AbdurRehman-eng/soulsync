@@ -67,6 +67,9 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file || !profile) return;
 
+    // Reset input so same file can be selected again
+    e.target.value = "";
+
     // Validate file type
     if (!file.type.startsWith("image/")) {
       setSaveMessage({ type: "error", text: "Please select an image file" });
@@ -87,61 +90,30 @@ export default function ProfilePage() {
     setIsUploadingImage(true);
 
     try {
-      const supabase = createClient();
+      // Use API route for upload (handles storage permissions server-side)
+      const formData = new FormData();
+      formData.append("file", file);
 
-      // Delete old avatar if exists
-      if (profile.avatar_url) {
-        try {
-          // Extract filename from URL
-          const url = new URL(profile.avatar_url);
-          const pathParts = url.pathname.split("/");
-          const fileName = pathParts[pathParts.length - 1];
-          if (fileName) {
-            await supabase.storage.from("profile-images").remove([fileName]);
-          }
-        } catch (e) {
-          // If URL parsing fails, try simple split
-          const oldPath = profile.avatar_url.split("/").pop();
-          if (oldPath) {
-            await supabase.storage.from("profile-images").remove([oldPath]);
-          }
-        }
+      const response = await fetch("/api/profile/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to upload image");
       }
 
-      // Upload new image
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${profile.id}-${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("profile-images")
-        .upload(fileName, file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("profile-images").getPublicUrl(fileName);
-
-      // Update profile in database
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ avatar_url: publicUrl })
-        .eq("id", profile.id);
-
-      if (updateError) throw updateError;
-
-      // Update local state
-      setProfile({ ...profile, avatar_url: publicUrl });
+      // Update local state with new avatar URL
+      setProfile({ ...profile, avatar_url: data.avatar_url });
 
       setSaveMessage({ type: "success", text: "Profile image updated!" });
       setTimeout(() => setSaveMessage(null), 3000);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Image upload error:", error);
-      setSaveMessage({ type: "error", text: "Failed to upload image" });
+      const errorMessage = error?.message || "Failed to upload image";
+      setSaveMessage({ type: "error", text: errorMessage });
       setTimeout(() => setSaveMessage(null), 3000);
     } finally {
       setIsUploadingImage(false);
