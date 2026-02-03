@@ -1,16 +1,44 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { Zap, Flame } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { Zap, Flame, User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 
 export function Header() {
-  const { profile, isAuthenticated, loading } = useUserStore();
+  const { profile, isAuthenticated, loading, logout } = useUserStore();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    setIsDropdownOpen(false);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      logout();
+      router.push("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 pt-safe">
-      <div className="glass-card mx-2 sm:mx-4 mt-2 sm:mt-4 px-3 sm:px-4 py-2 sm:py-3">
+      <div className="glass-card mx-2 sm:mx-4 mt-2 sm:mt-4 px-3 sm:px-4 py-2 sm:py-3 overflow-visible">
         <div className="flex items-center justify-between">
           {isAuthenticated && profile ? (
             <>
@@ -42,17 +70,63 @@ export function Header() {
                   </div>
                 </div>
 
-                {/* Membership Level Button */}
-                <Link href="/profile">
+                {/* Spark Button with Dropdown */}
+                <div className="relative" ref={dropdownRef}>
                   <motion.button
-                    className="px-4 sm:px-5 py-1.5 sm:py-2 rounded-full bg-[#fbbf24] text-black font-black text-xs sm:text-sm uppercase tracking-wide"
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="px-4 sm:px-5 py-1.5 sm:py-2 rounded-full bg-[#fbbf24] text-black font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     style={{ boxShadow: '0 2px 8px rgba(251, 191, 36, 0.4)' }}
                   >
                     Spark
+                    <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                   </motion.button>
-                </Link>
+
+                  {/* Dropdown Menu */}
+                  <AnimatePresence>
+                    {isDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 mt-2 w-40 sm:w-48 glass-card rounded-xl overflow-hidden z-50"
+                      >
+                        {/* Admin option - only for admins */}
+                        {profile.is_admin && (
+                          <Link
+                            href="/admin"
+                            onClick={() => setIsDropdownOpen(false)}
+                            className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
+                          >
+                            <Settings className="w-4 h-4 text-purple-500" />
+                            <span>Admin</span>
+                          </Link>
+                        )}
+
+                        {/* Profile option */}
+                        <Link
+                          href="/profile"
+                          onClick={() => setIsDropdownOpen(false)}
+                          className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
+                        >
+                          <User className="w-4 h-4 text-primary" />
+                          <span>Profile</span>
+                        </Link>
+
+                        {/* Logout option */}
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors text-red-500"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          <span>Logout</span>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </>
           ) : loading ? (

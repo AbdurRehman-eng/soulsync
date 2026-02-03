@@ -123,35 +123,30 @@ export default function AdminDashboard() {
                 <StatCard
                     title="Total Users"
                     value={stats.totalUsers.toLocaleString()}
-                    change={`${stats.totalUsers} total`}
                     icon={User}
                     color="text-blue-400"
                 />
                 <StatCard
                     title="Active Content"
                     value={stats.activeCards.toString()}
-                    change={`${stats.activeCards} published`}
                     icon={FileText}
                     color="text-purple-400"
                 />
                 <StatCard
                     title="Total Moods"
                     value={stats.totalMoods.toString()}
-                    change={`${stats.totalMoods} available`}
                     icon={Smile}
                     color="text-pink-400"
                 />
                 <StatCard
                     title="Total Tasks"
                     value={stats.totalTasks.toString()}
-                    change={`${stats.totalTasks} tasks`}
                     icon={ListTodo}
                     color="text-green-400"
                 />
                 <StatCard
                     title="Levels"
                     value={stats.totalLevels.toString()}
-                    change={`${stats.totalLevels} ranks`}
                     icon={Trophy}
                     color="text-amber-400"
                 />
@@ -229,7 +224,7 @@ export default function AdminDashboard() {
     );
 }
 
-function StatCard({ title, value, change, icon: Icon, color }: any) {
+function StatCard({ title, value, icon: Icon, color }: any) {
     return (
         <div className="glass-card p-6 relative overflow-hidden group hover:scale-[1.02] transition-transform">
             <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -239,7 +234,6 @@ function StatCard({ title, value, change, icon: Icon, color }: any) {
                 <div className={`w-12 h-12 rounded-xl bg-[var(--secondary)] flex items-center justify-center ${color} border border-[var(--border)]`}>
                     <Icon size={24} />
                 </div>
-                <span className="text-sm font-medium text-green-400 bg-green-400/10 px-2 py-1 rounded-full">{change}</span>
             </div>
             <h3 className="text-2xl font-bold text-[var(--foreground)]">{value}</h3>
             <p className="text-sm text-[var(--muted-foreground)]">{title}</p>
