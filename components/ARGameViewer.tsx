@@ -1,7 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { X, Play, Trophy, Target, Clock, Volume2, VolumeX, Gamepad2 } from "lucide-react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  X,
+  Play,
+  Trophy,
+  Target,
+  Clock,
+  Volume2,
+  VolumeX,
+  Gamepad2,
+  Camera,
+  CameraOff,
+  AlertTriangle,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ARGameType, ARGameConfig } from "@/types";
 import * as THREE from "three";
@@ -28,7 +40,14 @@ export function ARGameViewer({
   onGameComplete,
 }: ARGameViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [gameState, setGameState] = useState<"ready" | "playing" | "complete">("ready");
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [gameState, setGameState] = useState<
+    "requesting_camera" | "ready" | "playing" | "complete"
+  >("requesting_camera");
+  const [cameraStatus, setCameraStatus] = useState<
+    "pending" | "granted" | "denied" | "unavailable"
+  >("pending");
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(arConfig.gameTime);
   const [soundEnabled, setSoundEnabled] = useState(arConfig.soundEnabled);
@@ -38,12 +57,60 @@ export function ARGameViewer({
   const objectsRef = useRef<THREE.Mesh[]>([]);
   const animationFrameRef = useRef<number>();
 
+  // Request camera access when the component opens
+  const requestCamera = useCallback(async () => {
+    setCameraStatus("pending");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setCameraStatus("granted");
+      setGameState("ready");
+    } catch (err: any) {
+      console.error("Camera access error:", err);
+      if (
+        err.name === "NotAllowedError" ||
+        err.name === "PermissionDeniedError"
+      ) {
+        setCameraStatus("denied");
+      } else {
+        setCameraStatus("unavailable");
+      }
+      // Still allow playing without camera
+      setGameState("ready");
+    }
+  }, []);
+
+  // Request camera when opened
+  useEffect(() => {
+    if (isOpen) {
+      setGameState("requesting_camera");
+      requestCamera();
+    }
+
+    return () => {
+      // Stop camera stream on close
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [isOpen, requestCamera]);
+
+  // Initialize Three.js scene when playing
   useEffect(() => {
     if (!isOpen || !canvasRef.current || gameState !== "playing") return;
 
-    // Initialize Three.js scene
     const scene = new THREE.Scene();
-    scene.background = null; // Transparent for AR feel
+    scene.background = null; // Transparent so camera feed shows through
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(
@@ -72,12 +139,9 @@ export function ARGameViewer({
     directionalLight.position.set(5, 5, 5);
     scene.add(directionalLight);
 
-    // Create objects based on AR type
-    createGameObjects();
-
     // Animation loop
     let lastSpawnTime = Date.now();
-    const spawnInterval = 1000 / arConfig.spawnRate; // Convert rate to ms
+    const spawnInterval = 1000 / arConfig.spawnRate;
 
     function animate() {
       animationFrameRef.current = requestAnimationFrame(animate);
@@ -87,34 +151,30 @@ export function ARGameViewer({
       // Update objects
       objectsRef.current.forEach((obj, index) => {
         if (arType === "balloon_pop") {
-          // Float upward
           obj.position.y += 0.02;
           obj.rotation.y += 0.01;
-
-          // Remove if too high
           if (obj.position.y > 10) {
             scene.remove(obj);
             objectsRef.current.splice(index, 1);
           }
         } else if (arType === "catch_game") {
-          // Fall downward
           obj.position.y -= 0.03;
           obj.rotation.z += 0.02;
-
-          // Remove if too low
           if (obj.position.y < -10) {
             scene.remove(obj);
             objectsRef.current.splice(index, 1);
           }
         } else if (arType === "target_tap" || arType === "reaction_time") {
-          // Slight floating animation
           obj.position.y += Math.sin(Date.now() * 0.005 + index) * 0.005;
           obj.rotation.y += 0.02;
         }
       });
 
       // Spawn new objects
-      if (now - lastSpawnTime > spawnInterval && objectsRef.current.length < 20) {
+      if (
+        now - lastSpawnTime > spawnInterval &&
+        objectsRef.current.length < 20
+      ) {
         spawnObject();
         lastSpawnTime = now;
       }
@@ -126,21 +186,21 @@ export function ARGameViewer({
 
     animate();
 
-    // Cleanup
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      objectsRef.current.forEach(obj => scene.remove(obj));
+      objectsRef.current.forEach((obj) => scene.remove(obj));
       objectsRef.current = [];
       renderer.dispose();
     };
   }, [isOpen, gameState, arType, arConfig]);
 
+  // Game timer
   useEffect(() => {
     if (gameState === "playing" && timeLeft > 0) {
       const timer = setInterval(() => {
-        setTimeLeft(prev => {
+        setTimeLeft((prev) => {
           if (prev <= 1) {
             setGameState("complete");
             onGameComplete(score);
@@ -154,10 +214,6 @@ export function ARGameViewer({
     }
   }, [gameState, timeLeft, score, onGameComplete]);
 
-  const createGameObjects = () => {
-    // Initial objects will be spawned by animation loop
-  };
-
   const spawnObject = () => {
     if (!sceneRef.current) return;
 
@@ -170,12 +226,10 @@ export function ARGameViewer({
 
     const mesh = new THREE.Mesh(geometry, material);
 
-    // Random position
     mesh.position.x = (Math.random() - 0.5) * 8;
     mesh.position.y = arType === "catch_game" ? 8 : -5;
     mesh.position.z = (Math.random() - 0.5) * 3;
 
-    // Add glow effect if enabled
     if (arConfig.specialEffects.includes("glow")) {
       const glowGeometry = geometry.clone();
       const glowMaterial = new THREE.MeshBasicMaterial({
@@ -231,24 +285,22 @@ export function ARGameViewer({
     }
 
     shape.closePath();
-
-    const extrudeSettings = { depth: 0.1, bevelEnabled: false };
-    return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    return new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: false });
   };
 
   const createHeartGeometry = (): THREE.BufferGeometry => {
     const shape = new THREE.Shape();
-    const x = 0, y = 0;
+    const x = 0,
+      y = 0;
     shape.moveTo(x, y);
     shape.bezierCurveTo(x + 0.3, y - 0.3, x + 0.6, y, x, y + 0.5);
     shape.bezierCurveTo(x - 0.6, y, x - 0.3, y - 0.3, x, y);
-
-    const extrudeSettings = { depth: 0.1, bevelEnabled: true };
-    return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    return new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: true });
   };
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (gameState !== "playing" || !cameraRef.current || !rendererRef.current) return;
+    if (gameState !== "playing" || !cameraRef.current || !rendererRef.current)
+      return;
 
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -270,31 +322,25 @@ export function ARGameViewer({
   };
 
   const handleObjectHit = (object: THREE.Mesh) => {
-    // Remove object
     const index = objectsRef.current.indexOf(object);
     if (index > -1) {
       objectsRef.current.splice(index, 1);
     }
 
     if (sceneRef.current) {
-      // Particle effect if enabled
       if (arConfig.specialEffects.includes("particles")) {
         createParticleExplosion(object.position);
       }
-
       sceneRef.current.remove(object);
     }
 
-    // Update score
     const points = 10;
-    setScore(prev => prev + points);
+    setScore((prev) => prev + points);
 
-    // Play sound if enabled
     if (soundEnabled && arConfig.soundEnabled) {
       playHitSound();
     }
 
-    // Haptic feedback if enabled
     if (arConfig.hapticEnabled && navigator.vibrate) {
       navigator.vibrate(50);
     }
@@ -311,7 +357,6 @@ export function ARGameViewer({
         opacity: 1,
       });
       const particle = new THREE.Mesh(geometry, material);
-
       particle.position.copy(position);
 
       const velocity = new THREE.Vector3(
@@ -322,13 +367,11 @@ export function ARGameViewer({
 
       sceneRef.current.add(particle);
 
-      // Animate particle
       let opacity = 1;
       const animateParticle = () => {
         particle.position.add(velocity);
         opacity -= 0.05;
         material.opacity = opacity;
-
         if (opacity > 0) {
           requestAnimationFrame(animateParticle);
         } else {
@@ -340,22 +383,29 @@ export function ARGameViewer({
   };
 
   const playHitSound = () => {
-    // Simple beep sound using Web Audio API
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
+    try {
+      const audioContext = new (window.AudioContext ||
+        (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
 
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
 
-    oscillator.frequency.value = 800;
-    oscillator.type = "sine";
+      oscillator.frequency.value = 800;
+      oscillator.type = "sine";
 
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.01,
+        audioContext.currentTime + 0.1
+      );
 
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.1);
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } catch {
+      // Ignore audio errors
+    }
   };
 
   const handleStartGame = () => {
@@ -368,21 +418,28 @@ export function ARGameViewer({
     setGameState("ready");
     setScore(0);
     setTimeLeft(arConfig.gameTime);
-    objectsRef.current.forEach(obj => sceneRef.current?.remove(obj));
+    objectsRef.current.forEach((obj) => sceneRef.current?.remove(obj));
     objectsRef.current = [];
   };
 
   const handleCloseGame = () => {
-    setGameState("ready");
+    setGameState("requesting_camera");
+    setCameraStatus("pending");
     setScore(0);
     setTimeLeft(arConfig.gameTime);
-    objectsRef.current.forEach(obj => sceneRef.current?.remove(obj));
+    objectsRef.current.forEach((obj) => sceneRef.current?.remove(obj));
     objectsRef.current = [];
+    // Stop camera
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
     onClose();
   };
 
   const progress = (score / arConfig.targetScore) * 100;
   const isWinner = score >= arConfig.targetScore;
+  const hasCamera = cameraStatus === "granted";
 
   return (
     <AnimatePresence>
@@ -393,7 +450,22 @@ export function ARGameViewer({
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 bg-black"
         >
-          {/* Game Canvas */}
+          {/* Camera Video Feed (behind everything) */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ display: hasCamera ? "block" : "none" }}
+          />
+
+          {/* Dark overlay when no camera (fallback background) */}
+          {!hasCamera && (
+            <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-black to-gray-900" />
+          )}
+
+          {/* Game Canvas (transparent, overlays camera) */}
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
@@ -413,15 +485,15 @@ export function ARGameViewer({
               </button>
 
               {gameState === "playing" && (
-                <div className="flex items-center gap-4">
-                  <div className="px-4 py-2 rounded-lg bg-black/50 backdrop-blur-sm flex items-center gap-2">
-                    <Clock size={20} className="text-white" />
-                    <span className="text-white font-bold text-lg">{timeLeft}s</span>
+                <div className="flex items-center gap-3">
+                  <div className="px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm flex items-center gap-1.5">
+                    <Clock size={16} className="text-white" />
+                    <span className="text-white font-bold">{timeLeft}s</span>
                   </div>
 
-                  <div className="px-4 py-2 rounded-lg bg-black/50 backdrop-blur-sm flex items-center gap-2">
-                    <Trophy size={20} className="text-yellow-500" />
-                    <span className="text-white font-bold text-lg">{score}</span>
+                  <div className="px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm flex items-center gap-1.5">
+                    <Trophy size={16} className="text-yellow-500" />
+                    <span className="text-white font-bold">{score}</span>
                   </div>
 
                   <button
@@ -429,11 +501,26 @@ export function ARGameViewer({
                     className="p-2 rounded-lg bg-black/50 backdrop-blur-sm hover:bg-black/70 transition-colors"
                   >
                     {soundEnabled ? (
-                      <Volume2 size={20} className="text-white" />
+                      <Volume2 size={16} className="text-white" />
                     ) : (
-                      <VolumeX size={20} className="text-white" />
+                      <VolumeX size={16} className="text-white" />
                     )}
                   </button>
+                </div>
+              )}
+
+              {/* Camera status indicator */}
+              {gameState !== "requesting_camera" && (
+                <div
+                  className={`p-2 rounded-lg backdrop-blur-sm ${
+                    hasCamera ? "bg-green-500/30" : "bg-orange-500/30"
+                  }`}
+                >
+                  {hasCamera ? (
+                    <Camera size={16} className="text-green-400" />
+                  ) : (
+                    <CameraOff size={16} className="text-orange-400" />
+                  )}
                 </div>
               )}
             </div>
@@ -448,10 +535,35 @@ export function ARGameViewer({
                     className="h-full bg-gradient-to-r from-green-500 to-blue-500"
                   />
                 </div>
-                <p className="text-white text-sm mt-2 text-center">
+                <p className="text-white text-sm mt-2 text-center drop-shadow-lg">
                   Target: {arConfig.targetScore} points
                 </p>
               </div>
+            )}
+
+            {/* Camera Permission / Loading Screen */}
+            {gameState === "requesting_camera" && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="absolute inset-0 flex items-center justify-center p-4 pointer-events-auto bg-black/80"
+              >
+                <div className="text-center max-w-sm">
+                  <motion.div
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    className="w-20 h-20 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto mb-6"
+                  >
+                    <Camera size={40} className="text-blue-500" />
+                  </motion.div>
+                  <h2 className="text-xl font-bold text-white mb-2">
+                    Setting up AR Camera...
+                  </h2>
+                  <p className="text-gray-400 text-sm">
+                    Please allow camera access for the AR experience
+                  </p>
+                </div>
+              </motion.div>
             )}
 
             {/* Start Screen */}
@@ -461,21 +573,74 @@ export function ARGameViewer({
                 animate={{ opacity: 1, scale: 1 }}
                 className="absolute inset-0 flex items-center justify-center p-4 pointer-events-auto"
               >
-                <div className="glass-card max-w-md w-full p-6 text-center">
+                <div className="glass-card max-w-md w-full p-6 text-center bg-black/60 backdrop-blur-xl border border-white/10">
                   <Gamepad2 className="w-16 h-16 mx-auto mb-4 text-blue-500" />
-                  <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
-                  <p className="text-gray-300 mb-6">{instructions}</p>
+                  <h2 className="text-2xl font-bold text-white mb-2">
+                    {title}
+                  </h2>
+                  <p className="text-gray-300 mb-4">{instructions}</p>
+
+                  {/* Camera status banner */}
+                  {cameraStatus === "denied" && (
+                    <div className="mb-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-start gap-2 text-left">
+                      <AlertTriangle
+                        size={18}
+                        className="text-orange-400 flex-shrink-0 mt-0.5"
+                      />
+                      <div>
+                        <p className="text-orange-400 text-sm font-medium">
+                          Camera access denied
+                        </p>
+                        <p className="text-gray-400 text-xs mt-1">
+                          The game will work without the camera, but for the
+                          full AR experience, allow camera access in your browser
+                          settings.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {cameraStatus === "unavailable" && (
+                    <div className="mb-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-start gap-2 text-left">
+                      <CameraOff
+                        size={18}
+                        className="text-orange-400 flex-shrink-0 mt-0.5"
+                      />
+                      <div>
+                        <p className="text-orange-400 text-sm font-medium">
+                          Camera not available
+                        </p>
+                        <p className="text-gray-400 text-xs mt-1">
+                          No camera detected. The game will use a fallback
+                          background.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {hasCamera && (
+                    <div className="mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center gap-2">
+                      <Camera size={18} className="text-green-400" />
+                      <p className="text-green-400 text-sm font-medium">
+                        AR Camera ready
+                      </p>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
                     <div className="p-3 rounded-lg bg-white/10">
                       <Target className="w-5 h-5 mx-auto mb-1 text-blue-500" />
                       <p className="text-gray-400">Target</p>
-                      <p className="text-white font-bold">{arConfig.targetScore} pts</p>
+                      <p className="text-white font-bold">
+                        {arConfig.targetScore} pts
+                      </p>
                     </div>
                     <div className="p-3 rounded-lg bg-white/10">
                       <Clock className="w-5 h-5 mx-auto mb-1 text-green-500" />
                       <p className="text-gray-400">Time</p>
-                      <p className="text-white font-bold">{arConfig.gameTime}s</p>
+                      <p className="text-white font-bold">
+                        {arConfig.gameTime}s
+                      </p>
                     </div>
                   </div>
 
@@ -497,13 +662,20 @@ export function ARGameViewer({
                 animate={{ opacity: 1, scale: 1 }}
                 className="absolute inset-0 flex items-center justify-center p-4 pointer-events-auto"
               >
-                <div className="glass-card max-w-md w-full p-6 text-center">
-                  <Trophy className={`w-20 h-20 mx-auto mb-4 ${isWinner ? "text-yellow-500" : "text-gray-500"}`} />
+                <div className="glass-card max-w-md w-full p-6 text-center bg-black/60 backdrop-blur-xl border border-white/10">
+                  <Trophy
+                    className={`w-20 h-20 mx-auto mb-4 ${
+                      isWinner ? "text-yellow-500" : "text-gray-500"
+                    }`}
+                  />
                   <h2 className="text-3xl font-bold text-white mb-2">
                     {isWinner ? "You Won!" : "Game Over"}
                   </h2>
                   <p className="text-gray-300 mb-6">
-                    Final Score: <span className="text-2xl font-bold text-white">{score}</span>
+                    Final Score:{" "}
+                    <span className="text-2xl font-bold text-white">
+                      {score}
+                    </span>
                   </p>
 
                   <div className="flex gap-3">

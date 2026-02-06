@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardType } from "@/types";
-import { Plus, Edit2, Trash2, Loader2, Search, Eye, Sparkles, Gamepad2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Loader2, Search, Eye, Sparkles, Gamepad2, X, Smartphone, Code2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { CardFormModal } from "../components/CardFormModal";
 import { QuizGeneratorModal } from "../components/QuizGeneratorModal";
@@ -551,76 +551,418 @@ export default function ContentPage() {
         onSuccess={handleSuccess}
       />
 
-      {/* View Card Modal */}
+      {/* Preview Card Modal */}
       {viewCard && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setViewCard(null)}
-        >
-          <div
-            className="glass-card w-full max-w-2xl p-4 sm:p-6 max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1 min-w-0">
-                <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] mb-1 break-words">
-                  {viewCard.title}
-                </h2>
-                {viewCard.subtitle && (
-                  <p className="text-sm sm:text-base text-[var(--muted-foreground)] break-words">
-                    {viewCard.subtitle}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setViewCard(null)}
-                className="ml-4 p-2 hover:bg-[var(--secondary)] rounded-lg transition-colors flex-shrink-0"
-              >
-                ✕
-              </button>
-            </div>
-
-            {viewCard.thumbnail_url && (
-              <img
-                src={viewCard.thumbnail_url}
-                alt={viewCard.title}
-                className="w-full h-48 sm:h-64 object-cover rounded-lg mb-4"
-              />
-            )}
-
-            <div className="space-y-4 text-sm sm:text-base">
-              <div>
-                <span className="text-[var(--muted-foreground)]">Type:</span>{" "}
-                <span
-                  className={`px-2 py-1 rounded-md text-xs font-medium capitalize ${getTypeColor(
-                    viewCard.type
-                  )}`}
-                >
-                  {viewCard.type}
-                </span>
-              </div>
-              <div>
-                <span className="text-[var(--muted-foreground)]">Status:</span>{" "}
-                <span className={viewCard.is_active ? "text-green-400" : "text-gray-400"}>
-                  {viewCard.is_active ? "Published" : "Draft"}
-                </span>
-              </div>
-              <div>
-                <span className="text-[var(--muted-foreground)]">Created:</span>{" "}
-                {new Date(viewCard.created_at).toLocaleDateString()}
-              </div>
-              {viewCard.content && typeof viewCard.content === "object" && (
-                <div>
-                  <span className="text-[var(--muted-foreground)] block mb-2">Content:</span>
-                  <pre className="bg-[var(--secondary)]/50 p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm">
-                    {JSON.stringify(viewCard.content, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <ContentPreviewModal
+          card={viewCard}
+          onClose={() => setViewCard(null)}
+          getTypeColor={getTypeColor}
+        />
       )}
     </div>
   );
+}
+
+// ============================================
+// Content Preview Modal
+// ============================================
+function ContentPreviewModal({
+  card,
+  onClose,
+  getTypeColor,
+}: {
+  card: Card;
+  onClose: () => void;
+  getTypeColor: (type: string) => string;
+}) {
+  const [tab, setTab] = useState<"preview" | "data">("preview");
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="glass-card w-full max-w-4xl p-4 sm:p-6 max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4 flex-shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <h2 className="text-xl font-bold text-[var(--foreground)] truncate">
+              Preview: {card.title}
+            </h2>
+            <span
+              className={`px-2 py-1 rounded-md text-xs font-medium capitalize flex-shrink-0 ${getTypeColor(
+                card.type
+              )}`}
+            >
+              {card.type}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-[var(--secondary)] rounded-lg transition-colors flex-shrink-0"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-4 flex-shrink-0">
+          <button
+            onClick={() => setTab("preview")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === "preview"
+                ? "bg-[var(--primary)] text-white"
+                : "bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            <Smartphone size={16} />
+            Phone Preview
+          </button>
+          <button
+            onClick={() => setTab("data")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === "data"
+                ? "bg-[var(--primary)] text-white"
+                : "bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            <Code2 size={16} />
+            Raw Data
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {tab === "preview" ? (
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
+              {/* Phone Frame Preview */}
+              <div className="mx-auto flex-shrink-0">
+                <div className="relative">
+                  {/* Phone frame */}
+                  <div className="w-[320px] h-[580px] rounded-[2.5rem] border-[6px] border-gray-700 bg-[var(--background)] shadow-2xl overflow-hidden relative">
+                    {/* Notch */}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-6 bg-gray-700 rounded-b-2xl z-20" />
+
+                    {/* Screen content */}
+                    <div className="h-full pt-8 pb-4 px-1 overflow-hidden">
+                      <div className="h-full relative">
+                        {/* Use actual FeedCard rendering */}
+                        <div className="feed-card relative h-full rounded-2xl overflow-hidden">
+                          {card.background_url && (
+                            <div
+                              className="absolute inset-0 bg-cover bg-center"
+                              style={{ backgroundImage: `url(${card.background_url})` }}
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                            </div>
+                          )}
+                          <div className="relative h-full flex flex-col p-3 z-10 overflow-hidden">
+                            <div className="flex-1 overflow-hidden flex flex-col justify-center min-h-0">
+                              <CardPreviewContent card={card} />
+                            </div>
+                            {/* Points reward indicator */}
+                            {card.points_reward > 0 && (
+                              <div className="absolute top-3 right-3 px-2 py-1 rounded-full bg-accent/20 text-accent text-xs font-medium">
+                                +{card.points_reward} pts
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Home indicator */}
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-28 h-1 bg-gray-500 rounded-full" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Details Sidebar */}
+              <div className="flex-1 w-full space-y-4">
+                <div className="glass-card p-4 space-y-3">
+                  <h3 className="font-semibold text-[var(--foreground)]">Card Details</h3>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-[var(--muted-foreground)]">Status</p>
+                      <p className={`font-medium ${card.is_active ? "text-green-400" : "text-gray-400"}`}>
+                        {card.is_active ? "Published" : "Draft"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[var(--muted-foreground)]">Points</p>
+                      <p className="font-medium text-[var(--foreground)]">{card.points_reward} pts</p>
+                    </div>
+                    <div>
+                      <p className="text-[var(--muted-foreground)]">Min Level</p>
+                      <p className="font-medium text-[var(--foreground)]">
+                        {card.min_membership_level === 1 ? "Free" : card.min_membership_level === 2 ? "Plus" : "Premium"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[var(--muted-foreground)]">Created</p>
+                      <p className="font-medium text-[var(--foreground)]">
+                        {new Date(card.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  {card.subtitle && (
+                    <div>
+                      <p className="text-[var(--muted-foreground)] text-sm">Subtitle</p>
+                      <p className="text-sm text-[var(--foreground)]">{card.subtitle}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Raw Data Tab */
+            <div className="space-y-4">
+              <div className="glass-card p-4">
+                <h3 className="font-semibold text-[var(--foreground)] mb-3">Card Metadata</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <p className="text-[var(--muted-foreground)]">ID</p>
+                    <p className="font-mono text-xs text-[var(--foreground)] truncate">{card.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--muted-foreground)]">Type</p>
+                    <p className="capitalize text-[var(--foreground)]">{card.type}</p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--muted-foreground)]">Status</p>
+                    <p className={card.is_active ? "text-green-400" : "text-gray-400"}>
+                      {card.is_active ? "Published" : "Draft"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--muted-foreground)]">Points</p>
+                    <p className="text-[var(--foreground)]">{card.points_reward}</p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--muted-foreground)]">Min Level</p>
+                    <p className="text-[var(--foreground)]">{card.min_membership_level}</p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--muted-foreground)]">Sort Order</p>
+                    <p className="text-[var(--foreground)]">{card.sort_order}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass-card p-4">
+                <h3 className="font-semibold text-[var(--foreground)] mb-3">Content JSON</h3>
+                <pre className="bg-[var(--secondary)]/50 p-4 rounded-lg overflow-x-auto text-xs font-mono">
+                  {JSON.stringify(card.content, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// Card Preview Content (renders content per type)
+// ============================================
+function CardPreviewContent({ card }: { card: Card }) {
+  const content = card.content || {};
+
+  switch (card.type) {
+    case "verse":
+      return (
+        <div className="flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 rounded-lg bg-primary/20">
+              <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+              </svg>
+            </div>
+            <span className="text-xs font-medium text-primary">Daily Verse</span>
+          </div>
+          <blockquote className="text-sm font-serif leading-relaxed mb-3 line-clamp-5">
+            &ldquo;{content.verse_text}&rdquo;
+          </blockquote>
+          {content.verse_reference && (
+            <p className="text-sm text-accent font-medium mt-auto">
+              &mdash; {content.verse_reference}
+            </p>
+          )}
+        </div>
+      );
+
+    case "devotional":
+      return (
+        <div className="flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 rounded-lg bg-pink-500/20">
+              <svg className="w-4 h-4 text-pink-500" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+            </div>
+            <span className="text-xs font-medium text-pink-500">Devotional</span>
+          </div>
+          <h3 className="text-base font-bold mb-2">{card.title}</h3>
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">
+            {content.body}
+          </p>
+          {content.author && (
+            <p className="text-xs text-accent mt-auto pt-1">&mdash; {content.author}</p>
+          )}
+        </div>
+      );
+
+    case "article":
+      return (
+        <div className="flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-blue-500/20">
+                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+              </div>
+              <span className="text-xs font-medium text-blue-500">Article</span>
+            </div>
+            {content.read_time && (
+              <span className="text-[10px] text-muted-foreground">{content.read_time}m read</span>
+            )}
+          </div>
+          <h3 className="text-base font-bold mb-1">{card.title}</h3>
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+            {content.body}
+          </p>
+          {content.author && (
+            <p className="text-xs text-muted-foreground mt-auto pt-1">By {content.author}</p>
+          )}
+        </div>
+      );
+
+    case "prayer":
+      return (
+        <div className="flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 rounded-lg bg-green-500/20">
+              <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              </svg>
+            </div>
+            <span className="text-xs font-medium text-green-500">Prayer</span>
+          </div>
+          <h3 className="text-base font-bold mb-2">{card.title}</h3>
+          <div className="relative">
+            <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-green-500 to-transparent rounded-full" />
+            <p className="pl-3 text-xs leading-relaxed italic text-muted-foreground line-clamp-5">
+              {content.prayer_text}
+            </p>
+          </div>
+          <p className="text-lg font-serif text-accent text-center mt-auto pt-2">Amen</p>
+        </div>
+      );
+
+    case "motivational":
+      return (
+        <div className="flex flex-col justify-center items-center text-center overflow-hidden">
+          <div className="text-accent mb-3">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+            </svg>
+          </div>
+          <blockquote className="text-base font-bold leading-relaxed mb-3 line-clamp-4">
+            &ldquo;{content.quote}&rdquo;
+          </blockquote>
+          {content.quote_author && (
+            <p className="text-sm text-accent font-medium">&mdash; {content.quote_author}</p>
+          )}
+        </div>
+      );
+
+    case "task":
+      return (
+        <div className="flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 rounded-lg bg-cyan-500/20">
+              <svg className="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="12" r="6" />
+                <circle cx="12" cy="12" r="2" />
+              </svg>
+            </div>
+            <span className="text-xs font-medium text-cyan-500">Daily Task</span>
+          </div>
+          <h3 className="text-base font-bold mb-1">{card.title}</h3>
+          {card.subtitle && (
+            <p className="text-xs text-muted-foreground mb-2">{card.subtitle}</p>
+          )}
+          <div className="flex items-center gap-3 p-3 rounded-xl glass-card mt-2">
+            <div className="w-6 h-6 rounded-full border-2 border-muted-foreground" />
+            <div className="text-left">
+              <p className="text-sm font-medium">Complete</p>
+              <p className="text-xs text-muted-foreground">Tap when done</p>
+            </div>
+          </div>
+        </div>
+      );
+
+    case "quiz":
+      return (
+        <div className="flex flex-col justify-center items-center text-center overflow-hidden">
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-3">
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <path d="M12 17h.01" />
+            </svg>
+          </div>
+          <h3 className="text-base font-bold mb-1">{card.title}</h3>
+          {card.subtitle && (
+            <p className="text-xs text-muted-foreground mb-3">{card.subtitle}</p>
+          )}
+          <div className="px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-semibold">
+            Take Quiz
+          </div>
+        </div>
+      );
+
+    case "game":
+      return (
+        <div className="flex flex-col justify-center items-center text-center overflow-hidden">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center mb-3">
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <line x1="6" y1="12" x2="18" y2="12" />
+              <line x1="12" y1="6" x2="12" y2="18" />
+              <rect x="2" y="6" width="20" height="12" rx="2" />
+            </svg>
+          </div>
+          <h3 className="text-base font-bold mb-1">{card.title}</h3>
+          {card.subtitle && (
+            <p className="text-xs text-muted-foreground mb-3">{card.subtitle}</p>
+          )}
+          <div className="px-5 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm font-semibold flex items-center gap-2">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            Play Now
+          </div>
+        </div>
+      );
+
+    default:
+      return (
+        <div className="flex flex-col justify-center">
+          <h3 className="text-base font-bold mb-2">{card.title}</h3>
+          {card.subtitle && (
+            <p className="text-xs text-muted-foreground">{card.subtitle}</p>
+          )}
+        </div>
+      );
+  }
 }

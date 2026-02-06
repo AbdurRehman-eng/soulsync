@@ -37,8 +37,8 @@ export function Header() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 pt-safe">
-      <div className="glass-card mx-2 sm:mx-4 mt-2 sm:mt-4 px-3 sm:px-4 py-2 sm:py-3 overflow-visible">
+    <header className="fixed top-0 left-0 right-0 z-50 pt-safe">
+      <div className="glass-card mx-2 sm:mx-4 mt-2 sm:mt-4 px-3 sm:px-4 py-2 sm:py-3 overflow-visible backdrop-blur-md bg-card/90">
         <div className="flex items-center justify-between">
           {isAuthenticated && profile ? (
             <>
