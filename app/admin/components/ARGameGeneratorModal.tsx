@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { X, Loader2, Sparkles, Gamepad2, AlertCircle, Lightbulb } from "lucide-react";
+import { X, Loader2, Sparkles, Gamepad2, AlertCircle, Lightbulb, Code2, Eye } from "lucide-react";
+import { SandboxedIframe } from "@/components/sandbox/SandboxedIframe";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "react-hot-toast";
@@ -24,11 +25,16 @@ export function ARGameGeneratorModal({
   onClose,
   onSuccess,
 }: ARGameGeneratorModalProps) {
-  const [step, setStep] = useState<"input" | "review" | "suggestions">("input");
+  const [step, setStep] = useState<"input" | "review" | "suggestions" | "raw_html">("input");
   const [theme, setTheme] = useState("");
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Raw HTML game mode
+  const [rawHtmlContent, setRawHtmlContent] = useState("");
+  const [showRawPreview, setShowRawPreview] = useState(false);
+  const [rawMaxScore, setRawMaxScore] = useState(200);
 
   // Generated content
   const [title, setTitle] = useState("");
@@ -163,6 +169,59 @@ export function ARGameGeneratorModal({
     }
   };
 
+  const handleSaveRawHtml = async () => {
+    if (!title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+    if (!rawHtmlContent.trim()) {
+      toast.error("HTML content is required");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const { data: card, error: cardError } = await supabase
+        .from("cards")
+        .insert({
+          type: "game",
+          title: title.trim(),
+          subtitle: subtitle.trim() || null,
+          content: { description: instructions || "Play the game!" },
+          points_reward: pointsReward,
+          min_membership_level: 1,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (cardError) throw cardError;
+
+      const { error: gameError } = await supabase.from("games").insert({
+        card_id: card.id,
+        html_content: rawHtmlContent,
+        difficulty,
+        instructions: instructions || null,
+        max_score: rawMaxScore,
+        is_ar_game: false,
+        ar_type: null,
+        ar_config: null,
+      });
+
+      if (gameError) throw gameError;
+
+      toast.success("HTML game created successfully!");
+      onSuccess();
+      handleClose();
+    } catch (error: any) {
+      console.error("Raw HTML game save error:", error);
+      toast.error(error.message || "Failed to save game");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSuggestionSelect = (suggestion: GameSuggestion) => {
     setTheme(suggestion.title);
     setStep("input");
@@ -179,6 +238,9 @@ export function ARGameGeneratorModal({
     setDifficulty("medium");
     setComplexityReason("");
     setSuggestions([]);
+    setRawHtmlContent("");
+    setShowRawPreview(false);
+    setRawMaxScore(200);
     onClose();
   };
 
@@ -221,6 +283,7 @@ export function ARGameGeneratorModal({
                       {step === "input" && "Generate a simple AR game with AI"}
                       {step === "review" && "Review and edit your AR game"}
                       {step === "suggestions" && "Game too complex - try these alternatives"}
+                      {step === "raw_html" && "Create a game from raw HTML/JS"}
                     </p>
                   </div>
                 </div>
@@ -300,6 +363,120 @@ export function ARGameGeneratorModal({
                       </>
                     )}
                   </button>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-[var(--border)]" />
+                    </div>
+                    <div className="relative flex justify-center text-xs">
+                      <span className="bg-[var(--card)] px-2 text-[var(--muted-foreground)]">or</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setStep("raw_html")}
+                    className="w-full px-6 py-3 rounded-lg border border-[var(--border)] hover:bg-[var(--secondary)]/30 transition-colors flex items-center justify-center gap-2 text-[var(--muted-foreground)]"
+                  >
+                    <Code2 size={20} />
+                    Create from Raw HTML / JavaScript
+                  </button>
+                </div>
+              )}
+
+              {/* Raw HTML Game Step */}
+              {step === "raw_html" && (
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-sm">
+                    <p className="text-blue-400 font-medium mb-1">Sandboxed HTML Game</p>
+                    <p className="text-[var(--muted-foreground)] text-xs">
+                      The HTML runs in an isolated Blob URL iframe with strict CSP. Use
+                      <code className="bg-[var(--secondary)] px-1 rounded mx-1">SoulSync.postScore(n)</code> and
+                      <code className="bg-[var(--secondary)] px-1 rounded mx-1">SoulSync.complete(n)</code> to
+                      report score/completion.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Game Title *</label>
+                      <input type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+                        placeholder="My Custom Game" className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Points Reward</label>
+                      <input type="number" value={pointsReward} onChange={(e) => setPointsReward(parseInt(e.target.value) || 20)}
+                        className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Subtitle</label>
+                    <input type="text" value={subtitle} onChange={(e) => setSubtitle(e.target.value)}
+                      className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-[var(--foreground)]">Game HTML *</label>
+                      <button type="button" onClick={() => setShowRawPreview(!showRawPreview)}
+                        className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline">
+                        {showRawPreview ? <Code2 size={14} /> : <Eye size={14} />}
+                        {showRawPreview ? "Code" : "Preview"}
+                      </button>
+                    </div>
+                    {showRawPreview ? (
+                      <div className="w-full h-72 rounded-lg overflow-hidden border border-[var(--border)]">
+                        <SandboxedIframe htmlContent={rawHtmlContent} title="Game Preview" className="w-full h-full" />
+                      </div>
+                    ) : (
+                      <textarea
+                        value={rawHtmlContent}
+                        onChange={(e) => setRawHtmlContent(e.target.value)}
+                        placeholder={'<!DOCTYPE html>\n<html>\n<head><style>/* styles */</style></head>\n<body>\n  <!-- game -->\n  <script>\n    // SoulSync.postScore(n)\n    // SoulSync.complete(n)\n  </script>\n</body>\n</html>'}
+                        rows={14}
+                        className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] font-mono text-xs resize-none"
+                        spellCheck={false}
+                      />
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Difficulty</label>
+                      <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as any)}
+                        className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] text-sm">
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Max Score</label>
+                      <input type="number" value={rawMaxScore} onChange={(e) => setRawMaxScore(parseInt(e.target.value) || 200)}
+                        className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Instructions</label>
+                      <input type="text" value={instructions} onChange={(e) => setInstructions(e.target.value)}
+                        placeholder="Tap to score!" className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] text-sm" />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4 sticky bottom-0 bg-[var(--card)] pb-2">
+                    <button onClick={() => setStep("input")}
+                      className="flex-1 px-4 py-3 rounded-lg bg-[var(--secondary)] hover:bg-[var(--secondary)]/80 text-[var(--foreground)] transition-colors">
+                      Back
+                    </button>
+                    <button onClick={handleSaveRawHtml} disabled={saving}
+                      className="flex-1 px-4 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                      {saving ? (
+                        <><Loader2 className="animate-spin" size={18} /> Saving...</>
+                      ) : (
+                        "Create HTML Game"
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
 

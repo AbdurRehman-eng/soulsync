@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Loader2, Sparkles } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { X, Loader2, Sparkles, Eye, Code2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardType, ContentCategory } from "@/types";
 import { createClient } from "@/lib/supabase/client";
+import { SandboxedIframe } from "@/components/sandbox/SandboxedIframe";
 import { toast } from "react-hot-toast";
 
 interface CardFormModalProps {
@@ -56,6 +57,15 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
     const [upgradeMessage, setUpgradeMessage] = useState("");
     const [journalPromptText, setJournalPromptText] = useState("");
     const [imageUrl, setImageUrl] = useState("");
+
+    // Raw HTML / JSON for games and quizzes
+    const [rawHtmlContent, setRawHtmlContent] = useState("");
+    const [rawQuizJson, setRawQuizJson] = useState("");
+    const [gameDifficulty, setGameDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+    const [gameInstructions, setGameInstructions] = useState("");
+    const [gameMaxScore, setGameMaxScore] = useState(200);
+    const [showGamePreview, setShowGamePreview] = useState(false);
+    const [quizJsonError, setQuizJsonError] = useState<string | null>(null);
 
     // Featured / Trending / Pin controls
     const [isFeatured, setIsFeatured] = useState(false);
@@ -141,6 +151,57 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
             setFeaturedStart(card.featured_start || "");
             setFeaturedEnd(card.featured_end || "");
             setCategoryId(card.category_id || null);
+
+            // Raw HTML / JSON fields - fetched separately for game/quiz types
+            setRawHtmlContent("");
+            setRawQuizJson("");
+            setGameDifficulty("medium");
+            setGameInstructions("");
+            setGameMaxScore(200);
+            setShowGamePreview(false);
+            setQuizJsonError(null);
+
+            // If editing a game card, fetch game data
+            if (card.type === "game") {
+                (async () => {
+                    const { data: gameData } = await supabase
+                        .from("games")
+                        .select("*")
+                        .eq("card_id", card.id)
+                        .single();
+                    if (gameData) {
+                        setRawHtmlContent(gameData.html_content || "");
+                        setGameDifficulty(gameData.difficulty || "medium");
+                        setGameInstructions(gameData.instructions || "");
+                        setGameMaxScore(gameData.max_score || 200);
+                    }
+                })();
+            }
+
+            // If editing a quiz card, fetch quiz + questions as JSON
+            if (card.type === "quiz") {
+                (async () => {
+                    const { data: quizData } = await supabase
+                        .from("quizzes")
+                        .select("*, quiz_questions:quiz_questions(*)")
+                        .eq("card_id", card.id)
+                        .single();
+                    if (quizData) {
+                        setGameDifficulty(quizData.difficulty || "medium");
+                        setGameInstructions(quizData.instructions || "");
+                        const questions = (quizData.quiz_questions || [])
+                            .sort((a: any, b: any) => a.sort_order - b.sort_order)
+                            .map((q: any) => ({
+                                question: q.question,
+                                options: q.options,
+                                correct_answer: q.correct_answer,
+                                explanation: q.explanation,
+                                points: q.points,
+                            }));
+                        setRawQuizJson(JSON.stringify({ questions }, null, 2));
+                    }
+                })();
+            }
         } else {
             // Reset form
             setType("verse");
@@ -189,6 +250,13 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
             setFeaturedStart("");
             setFeaturedEnd("");
             setCategoryId(null);
+            setRawHtmlContent("");
+            setRawQuizJson("");
+            setGameDifficulty("medium");
+            setGameInstructions("");
+            setGameMaxScore(200);
+            setShowGamePreview(false);
+            setQuizJsonError(null);
         }
     }, [card, isOpen]);
 
@@ -334,10 +402,18 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
             return;
         }
 
-        // Prevent creating quiz/game types (they need dedicated editors)
-        if (type === "quiz" || type === "game") {
-            toast.error(`${type.charAt(0).toUpperCase() + type.slice(1)} content requires a dedicated editor. Coming soon!`);
-            return;
+        // Validate quiz JSON before saving
+        if (type === "quiz" && rawQuizJson.trim()) {
+            try {
+                const parsed = JSON.parse(rawQuizJson);
+                if (!parsed.questions || !Array.isArray(parsed.questions)) {
+                    toast.error("Quiz JSON must have a 'questions' array");
+                    return;
+                }
+            } catch {
+                toast.error("Invalid JSON format for quiz");
+                return;
+            }
         }
 
         setLoading(true);
@@ -363,6 +439,8 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                 category_id: categoryId || null,
             };
 
+            let savedCardId: string;
+
             if (card) {
                 // Update existing card
                 const { error } = await supabase
@@ -371,13 +449,93 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                     .eq("id", card.id);
 
                 if (error) throw error;
+                savedCardId = card.id;
                 toast.success("Content updated successfully");
             } else {
                 // Create new card
-                const { error } = await supabase.from("cards").insert(cardData);
+                const { data: newCard, error } = await supabase
+                    .from("cards")
+                    .insert(cardData)
+                    .select()
+                    .single();
 
                 if (error) throw error;
+                savedCardId = newCard.id;
                 toast.success("Content created successfully");
+            }
+
+            // --- Save game data (raw HTML) ---
+            if (type === "game" && rawHtmlContent.trim()) {
+                // Upsert: delete existing game record then insert fresh
+                await supabase.from("games").delete().eq("card_id", savedCardId);
+
+                const { error: gameError } = await supabase.from("games").insert({
+                    card_id: savedCardId,
+                    html_content: rawHtmlContent,
+                    difficulty: gameDifficulty,
+                    instructions: gameInstructions || null,
+                    max_score: gameMaxScore,
+                    is_ar_game: false,
+                    ar_type: null,
+                    ar_config: null,
+                });
+                if (gameError) {
+                    console.error("Error saving game data:", gameError);
+                    toast.error("Card saved, but game HTML failed to save");
+                }
+            }
+
+            // --- Save quiz data (raw JSON) ---
+            if (type === "quiz" && rawQuizJson.trim()) {
+                const parsed = JSON.parse(rawQuizJson);
+                const questions = parsed.questions || [];
+
+                // Delete existing quiz + questions
+                const { data: existingQuiz } = await supabase
+                    .from("quizzes")
+                    .select("id")
+                    .eq("card_id", savedCardId)
+                    .single();
+
+                if (existingQuiz) {
+                    await supabase.from("quiz_questions").delete().eq("quiz_id", existingQuiz.id);
+                    await supabase.from("quizzes").delete().eq("id", existingQuiz.id);
+                }
+
+                // Create new quiz
+                const { data: quiz, error: quizError } = await supabase
+                    .from("quizzes")
+                    .insert({
+                        card_id: savedCardId,
+                        difficulty: gameDifficulty,
+                        instructions: gameInstructions || subtitle || null,
+                    })
+                    .select()
+                    .single();
+
+                if (quizError) {
+                    console.error("Error saving quiz:", quizError);
+                    toast.error("Card saved, but quiz data failed to save");
+                } else if (questions.length > 0) {
+                    const questionsData = questions.map((q: any, i: number) => ({
+                        quiz_id: quiz.id,
+                        question: q.question,
+                        options: q.options,
+                        correct_answer: q.correct_answer ?? 0,
+                        explanation: q.explanation || null,
+                        points: q.points ?? Math.ceil(pointsReward / questions.length),
+                        sort_order: i,
+                    }));
+
+                    const { error: qError } = await supabase
+                        .from("quiz_questions")
+                        .insert(questionsData);
+
+                    if (qError) {
+                        console.error("Error saving quiz questions:", qError);
+                        toast.error("Quiz saved, but some questions failed");
+                    }
+                }
             }
 
             onSuccess();
@@ -786,17 +944,137 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                     </div>
                 );
 
-            case "quiz":
             case "game":
                 return (
-                    <div className="text-center py-8 bg-[var(--secondary)]/30 rounded-lg border-2 border-dashed border-[var(--border)]">
-                        <p className="text-[var(--muted-foreground)] mb-2">
-                            {type.charAt(0).toUpperCase() + type.slice(1)} content requires a dedicated editor
-                        </p>
-                        <p className="text-sm text-[var(--muted-foreground)]">
-                            Use the specialized {type} creator
-                        </p>
-                    </div>
+                    <>
+                        <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-sm">
+                            <p className="text-blue-400 font-medium mb-1">Raw HTML Game Editor</p>
+                            <p className="text-[var(--muted-foreground)] text-xs">
+                                Paste raw HTML/CSS/JS. The game runs in a sandboxed iframe (Blob URL + strict CSP).
+                                Use <code className="bg-[var(--secondary)] px-1 rounded">SoulSync.postScore(n)</code> and
+                                <code className="bg-[var(--secondary)] px-1 rounded ml-1">SoulSync.complete(n)</code> to
+                                communicate score back to the app.
+                            </p>
+                        </div>
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-medium text-[var(--foreground)]">
+                                    Game HTML *
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowGamePreview(!showGamePreview)}
+                                    className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline"
+                                >
+                                    {showGamePreview ? <Code2 size={14} /> : <Eye size={14} />}
+                                    {showGamePreview ? "Code" : "Preview"}
+                                </button>
+                            </div>
+                            {showGamePreview ? (
+                                <div className="w-full h-64 rounded-lg overflow-hidden border border-[var(--border)]">
+                                    <SandboxedIframe
+                                        htmlContent={rawHtmlContent}
+                                        title="Game Preview"
+                                        className="w-full h-full"
+                                    />
+                                </div>
+                            ) : (
+                                <textarea
+                                    value={rawHtmlContent}
+                                    onChange={(e) => setRawHtmlContent(e.target.value)}
+                                    placeholder={'<!DOCTYPE html>\n<html>\n<head>\n  <style>/* styles */</style>\n</head>\n<body>\n  <!-- game content -->\n  <script>\n    // Use SoulSync.postScore(n) and SoulSync.complete(n)\n  </script>\n</body>\n</html>'}
+                                    rows={12}
+                                    className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] font-mono text-xs resize-none"
+                                    spellCheck={false}
+                                />
+                            )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Difficulty</label>
+                                <select value={gameDifficulty} onChange={(e) => setGameDifficulty(e.target.value as any)}
+                                    className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] text-sm">
+                                    <option value="easy">Easy</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="hard">Hard</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Max Score</label>
+                                <input type="number" value={gameMaxScore} onChange={(e) => setGameMaxScore(parseInt(e.target.value) || 200)}
+                                    className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] text-sm" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Instructions</label>
+                                <input type="text" value={gameInstructions} onChange={(e) => setGameInstructions(e.target.value)}
+                                    placeholder="Tap objects to score!" className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] text-sm" />
+                            </div>
+                        </div>
+                    </>
+                );
+
+            case "quiz":
+                return (
+                    <>
+                        <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 text-sm">
+                            <p className="text-purple-400 font-medium mb-1">Raw JSON Quiz Editor</p>
+                            <p className="text-[var(--muted-foreground)] text-xs">
+                                Paste quiz JSON or use the AI Quiz Generator. Format:
+                                <code className="block bg-[var(--secondary)] p-2 rounded mt-1 text-[10px] whitespace-pre">
+{`{ "questions": [
+  { "question": "...", "options": ["A","B","C","D"],
+    "correct_answer": 0, "explanation": "..." }
+]}`}
+                                </code>
+                            </p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
+                                Quiz JSON *
+                            </label>
+                            <textarea
+                                value={rawQuizJson}
+                                onChange={(e) => {
+                                    setRawQuizJson(e.target.value);
+                                    try {
+                                        if (e.target.value.trim()) {
+                                            JSON.parse(e.target.value);
+                                            setQuizJsonError(null);
+                                        }
+                                    } catch (err: any) {
+                                        setQuizJsonError(err.message);
+                                    }
+                                }}
+                                placeholder={'{\n  "questions": [\n    {\n      "question": "What is the first book of the Bible?",\n      "options": ["Genesis", "Exodus", "Leviticus", "Numbers"],\n      "correct_answer": 0,\n      "explanation": "Genesis is the first book."\n    }\n  ]\n}'}
+                                rows={10}
+                                className={`w-full px-4 py-2 rounded-lg bg-[var(--background)] border focus:outline-none focus:ring-2 text-[var(--foreground)] font-mono text-xs resize-none ${
+                                    quizJsonError
+                                        ? "border-red-500 focus:ring-red-500"
+                                        : "border-[var(--border)] focus:ring-[var(--primary)]"
+                                }`}
+                                spellCheck={false}
+                            />
+                            {quizJsonError && (
+                                <p className="text-xs text-red-400 mt-1">JSON Error: {quizJsonError}</p>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Difficulty</label>
+                                <select value={gameDifficulty} onChange={(e) => setGameDifficulty(e.target.value as any)}
+                                    className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] text-sm">
+                                    <option value="easy">Easy</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="hard">Hard</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Instructions</label>
+                                <input type="text" value={gameInstructions} onChange={(e) => setGameInstructions(e.target.value)}
+                                    placeholder="Answer all questions correctly" className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] text-sm" />
+                            </div>
+                        </div>
+                    </>
                 );
 
             default:

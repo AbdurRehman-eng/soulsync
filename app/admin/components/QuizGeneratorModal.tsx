@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Loader2, Sparkles, Plus, Trash2, Check } from "lucide-react";
+import { X, Loader2, Sparkles, Plus, Trash2, Check, Upload, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "react-hot-toast";
@@ -298,6 +298,48 @@ export function QuizGeneratorModal({
                       </>
                     )}
                   </button>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-[var(--border)]" />
+                    </div>
+                    <div className="relative flex justify-center text-xs">
+                      <span className="bg-[var(--card)] px-2 text-[var(--muted-foreground)]">or</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const input = prompt(
+                        'Paste quiz JSON (format: { "questions": [{ "question": "...", "options": ["A","B","C","D"], "correct_answer": 0, "explanation": "..." }] })'
+                      );
+                      if (!input) return;
+                      try {
+                        const parsed = JSON.parse(input);
+                        if (!parsed.questions || !Array.isArray(parsed.questions)) {
+                          toast.error("JSON must have a 'questions' array");
+                          return;
+                        }
+                        setTitle(title || "Imported Quiz");
+                        setSubtitle(subtitle || "Test your knowledge");
+                        setQuestions(parsed.questions.map((q: any) => ({
+                          question: q.question || "",
+                          options: q.options || ["", "", "", ""],
+                          correct_answer: q.correct_answer ?? 0,
+                          explanation: q.explanation || "",
+                        })));
+                        setStep("review");
+                        toast.success(`Imported ${parsed.questions.length} questions`);
+                      } catch {
+                        toast.error("Invalid JSON format");
+                      }
+                    }}
+                    className="w-full px-6 py-3 rounded-lg border border-[var(--border)] hover:bg-[var(--secondary)]/30 transition-colors flex items-center justify-center gap-2 text-[var(--muted-foreground)]"
+                  >
+                    <Upload size={20} />
+                    Import from JSON
+                  </button>
                 </div>
               )}
 
@@ -409,13 +451,33 @@ export function QuizGeneratorModal({
                     </div>
                   ))}
 
-                  <button
-                    onClick={addQuestion}
-                    className="w-full px-4 py-3 rounded-lg border-2 border-dashed border-[var(--border)] hover:bg-[var(--secondary)]/30 transition-colors flex items-center justify-center gap-2 text-[var(--muted-foreground)]"
-                  >
-                    <Plus size={20} />
-                    Add Question
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={addQuestion}
+                      className="flex-1 px-4 py-3 rounded-lg border-2 border-dashed border-[var(--border)] hover:bg-[var(--secondary)]/30 transition-colors flex items-center justify-center gap-2 text-[var(--muted-foreground)]"
+                    >
+                      <Plus size={20} />
+                      Add Question
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const json = JSON.stringify({ questions: questions.map(q => ({
+                          question: q.question,
+                          options: q.options,
+                          correct_answer: q.correct_answer,
+                          explanation: q.explanation || "",
+                        }))}, null, 2);
+                        navigator.clipboard.writeText(json);
+                        toast.success("Quiz JSON copied to clipboard");
+                      }}
+                      className="px-4 py-3 rounded-lg border border-[var(--border)] hover:bg-[var(--secondary)]/30 transition-colors flex items-center gap-2 text-[var(--muted-foreground)]"
+                      title="Export as JSON"
+                    >
+                      <Download size={18} />
+                      Export
+                    </button>
+                  </div>
 
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-4 sticky bottom-0 bg-[var(--card)] pb-2">

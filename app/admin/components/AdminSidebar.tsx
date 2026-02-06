@@ -14,6 +14,7 @@ import {
     ListTodo,
     Trophy,
     FolderOpen,
+    BookOpen,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ const navItems = [
     { href: "/admin/levels", icon: Trophy, label: "Levels" },
     { href: "/admin/users", icon: Users, label: "Users" },
     { href: "/admin/settings", icon: Settings, label: "Settings" },
+    { href: "/admin/manual", icon: BookOpen, label: "Manual" },
 ];
 
 export function AdminSidebar() {

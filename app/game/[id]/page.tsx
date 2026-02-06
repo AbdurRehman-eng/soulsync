@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { SandboxedIframe } from "@/components/sandbox/SandboxedIframe";
 import dynamic from "next/dynamic";
 import type { Card, Game } from "@/types";
 import { toast } from "react-hot-toast";
@@ -40,7 +41,6 @@ export default function GamePage({
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
   const [gameId, setGameId] = useState<string | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const supabase = useMemo(() => createClient(), []);
 
   // Resolve params
@@ -140,20 +140,18 @@ export default function GamePage({
     }
   };
 
-  // Handle messages from the game iframe
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === "GAME_SCORE") {
-        setScore(event.data.score);
+  // Handle messages from the sandboxed game iframe
+  const handleIframeMessage = useCallback(
+    (data: any) => {
+      if (data.type === "GAME_SCORE") {
+        setScore(data.score);
       }
-      if (event.data.type === "GAME_COMPLETE") {
-        handleGameComplete(event.data.score);
+      if (data.type === "GAME_COMPLETE") {
+        handleGameComplete(data.score);
       }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [card]);
+    },
+    [card]
+  );
 
   const goHome = () => router.push("/");
 
@@ -263,14 +261,13 @@ export default function GamePage({
         </div>
       </div>
 
-      {/* Game iframe */}
+      {/* Sandboxed game renderer - Blob URL + strict CSP isolation */}
       <div className="flex-1 bg-black">
-        <iframe
-          ref={iframeRef}
-          srcDoc={gameData.html_content || getGameHTML()}
-          sandbox="allow-scripts"
-          className="w-full h-full border-0"
+        <SandboxedIframe
+          htmlContent={gameData.html_content || getGameHTML()}
           title={card.title}
+          onMessage={handleIframeMessage}
+          className="w-full h-full"
         />
       </div>
     </div>
