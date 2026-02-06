@@ -32,7 +32,7 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
       const response = await fetch("/api/interactions?type=like&limit=500");
       if (response.ok) {
         const data = await response.json();
-        const likedCardIds = new Set(data.cards?.map((c: Card) => c.id) || []);
+        const likedCardIds = new Set<string>(data.cards?.map((c: Card) => c.id) ?? []);
         console.log(`[CardFeed] Loaded ${likedCardIds.size} liked cards`);
         setLikedCards(likedCardIds);
       }
