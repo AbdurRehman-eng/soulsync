@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, X, Mic, MicOff, Volume2, VolumeX, Trash2 } from "lucide-react";
+import {
+  Send,
+  X,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Trash2,
+  AlertCircle,
+  RefreshCw,
+} from "lucide-react";
 import { Mascot, MascotState } from "./Mascot";
 import { cn } from "@/lib/utils";
 import { useUserStore } from "@/stores/userStore";
@@ -26,10 +35,16 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [mascotState, setMascotState] = useState<MascotState>("idle");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(
+    null
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -37,38 +52,76 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, error]);
 
   // Load chat history when opening the chat (if authenticated)
   useEffect(() => {
-    if (isOpen && isAuthenticated) {
+    if (isOpen && isAuthenticated && !historyLoaded) {
       loadChatHistory();
+    } else if (isOpen && !isAuthenticated) {
+      // Not authenticated - mark as loaded so input is enabled
+      setHistoryLoaded(true);
     }
-  }, [isOpen, isAuthenticated]);
+  }, [isOpen, isAuthenticated, historyLoaded]);
+
+  // Focus input when ready
+  useEffect(() => {
+    if (isOpen && historyLoaded && !isLoadingHistory && inputRef.current) {
+      // Small delay to let animation finish
+      const timer = setTimeout(() => inputRef.current?.focus(), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, historyLoaded, isLoadingHistory]);
+
+  // Reset state when chat closes
+  useEffect(() => {
+    if (!isOpen) {
+      setError(null);
+      setLastFailedMessage(null);
+    }
+  }, [isOpen]);
 
   const loadChatHistory = async () => {
     try {
       setIsLoadingHistory(true);
+      setError(null);
       const response = await fetch("/api/chat?limit=50");
-      if (response.ok) {
-        const data = await response.json();
-        const historyMessages = data.messages.map((msg: any) => ({
-          id: msg.id,
-          role: msg.role,
-          content: msg.content,
-          timestamp: new Date(msg.created_at),
-        }));
-        setMessages(historyMessages);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Not authenticated - that's fine, just skip history
+          setHistoryLoaded(true);
+          return;
+        }
+        throw new Error("Failed to load chat history");
       }
-    } catch (error) {
-      console.error("Failed to load chat history:", error);
+
+      const data = await response.json();
+      const historyMessages = (data.messages || []).map((msg: any) => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+      }));
+      setMessages(historyMessages);
+      setHistoryLoaded(true);
+    } catch (err) {
+      console.error("Failed to load chat history:", err);
+      // Still allow the user to chat even if history fails
+      setHistoryLoaded(true);
+      setError("Couldn't load your chat history, but you can still chat.");
     } finally {
       setIsLoadingHistory(false);
     }
   };
 
   const clearChatHistory = async () => {
-    if (!confirm("Are you sure you want to clear your chat history? This cannot be undone.")) return;
+    if (
+      !confirm(
+        "Are you sure you want to clear your chat history? This cannot be undone."
+      )
+    )
+      return;
 
     try {
       if (isAuthenticated) {
@@ -78,74 +131,111 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
         }
       }
       setMessages([]);
-    } catch (error) {
-      console.error("Failed to clear chat history:", error);
-      alert("Failed to clear chat history. Please try again.");
+      setError(null);
+      setLastFailedMessage(null);
+    } catch (err) {
+      console.error("Failed to clear chat history:", err);
+      setError("Failed to clear chat history. Please try again.");
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const sendMessage = useCallback(
+    async (messageText: string) => {
+      if (!messageText.trim() || isLoading) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input.trim(),
-      timestamp: new Date(),
-    };
+      setError(null);
+      setLastFailedMessage(null);
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
-    setMascotState("thinking");
-
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to get response");
-
-      const data = await response.json();
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: data.message,
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: "user",
+        content: messageText.trim(),
         timestamp: new Date(),
       };
 
-      setMessages((prev) => [...prev, assistantMessage]);
-      setMascotState("talking");
+      setMessages((prev) => [...prev, userMessage]);
+      setInput("");
+      setIsLoading(true);
+      setMascotState("thinking");
 
-      // Text-to-speech
-      if (ttsEnabled && "speechSynthesis" in window) {
-        const utterance = new SpeechSynthesisUtterance(data.message);
-        utterance.rate = 0.9;
-        utterance.pitch = 1.1;
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => {
-          setIsSpeaking(false);
-          setMascotState("idle");
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [...messages, userMessage].map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.error || `Request failed with status ${response.status}`
+          );
+        }
+
+        if (!data.message) {
+          throw new Error("Received an empty response from the AI");
+        }
+
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: data.message,
+          timestamp: new Date(),
         };
-        speechSynthesis.speak(utterance);
-      } else {
-        setTimeout(() => setMascotState("idle"), 2000);
+
+        setMessages((prev) => [...prev, assistantMessage]);
+        setMascotState("talking");
+
+        // Text-to-speech
+        if (ttsEnabled && "speechSynthesis" in window) {
+          const utterance = new SpeechSynthesisUtterance(data.message);
+          utterance.rate = 0.9;
+          utterance.pitch = 1.1;
+          utterance.onstart = () => setIsSpeaking(true);
+          utterance.onend = () => {
+            setIsSpeaking(false);
+            setMascotState("idle");
+          };
+          speechSynthesis.speak(utterance);
+        } else {
+          setTimeout(() => setMascotState("idle"), 2000);
+        }
+      } catch (err: any) {
+        const errorMsg =
+          err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again.";
+        setError(errorMsg);
+        setLastFailedMessage(messageText.trim());
+        setMascotState("idle");
+      } finally {
+        setIsLoading(false);
       }
-    } catch {
-      setMascotState("sad");
-      setTimeout(() => setMascotState("idle"), 2000);
-    } finally {
-      setIsLoading(false);
+    },
+    [isLoading, messages, ttsEnabled]
+  );
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessage(input);
+  };
+
+  const handleRetry = () => {
+    if (lastFailedMessage) {
+      setError(null);
+      sendMessage(lastFailedMessage);
     }
+  };
+
+  const dismissError = () => {
+    setError(null);
+    setLastFailedMessage(null);
   };
 
   const stopSpeaking = () => {
@@ -155,6 +245,9 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
       setMascotState("idle");
     }
   };
+
+  // Determine if input should be disabled
+  const inputDisabled = isLoading || (isLoadingHistory && !historyLoaded);
 
   return (
     <AnimatePresence>
@@ -179,7 +272,11 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
                 <div>
                   <h3 className="font-semibold">Soul Buddy</h3>
                   <p className="text-xs text-muted-foreground">
-                    {isLoading ? "Thinking..." : "Online"}
+                    {isLoadingHistory
+                      ? "Loading history..."
+                      : isLoading
+                      ? "Thinking..."
+                      : "Online"}
                   </p>
                 </div>
               </div>
@@ -189,8 +286,14 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
                     onClick={clearChatHistory}
                     className="p-2 rounded-full hover:bg-muted/50 transition-colors"
                     title="Clear chat history"
+                    disabled={isLoading || isLoadingHistory}
                   >
-                    <Trash2 className="w-5 h-5 text-muted-foreground" />
+                    <Trash2
+                      className={cn(
+                        "w-5 h-5 text-muted-foreground",
+                        (isLoading || isLoadingHistory) && "opacity-40"
+                      )}
+                    />
                   </button>
                 )}
                 <button
@@ -228,12 +331,16 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
               {isLoadingHistory ? (
                 <div className="text-center py-8">
                   <Mascot state="thinking" size="lg" className="mx-auto mb-4" />
-                  <p className="text-muted-foreground">Loading your chat history...</p>
+                  <p className="text-muted-foreground">
+                    Loading your chat history...
+                  </p>
                 </div>
-              ) : messages.length === 0 ? (
+              ) : messages.length === 0 && !error ? (
                 <div className="text-center py-8 px-4">
                   <Mascot state="happy" size="lg" className="mx-auto mb-4" />
-                  <h3 className="font-semibold text-lg mb-2">Hi! I'm Soul Buddy</h3>
+                  <h3 className="font-semibold text-lg mb-2">
+                    Hi! I'm Soul Buddy
+                  </h3>
                   <p className="text-muted-foreground text-sm mb-4">
                     Your AI companion powered by Google Gemini
                   </p>
@@ -273,9 +380,7 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
                     )}
                   >
                     <div className="text-sm prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-headings:my-2">
-                      <ReactMarkdown>
-                        {message.content}
-                      </ReactMarkdown>
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
                     </div>
                     <p className="text-xs opacity-50 mt-1">
                       {message.timestamp.toLocaleTimeString([], {
@@ -287,6 +392,7 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
                 </motion.div>
               ))}
 
+              {/* Loading indicator */}
               {isLoading && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -312,6 +418,42 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
                 </motion.div>
               )}
 
+              {/* Error message */}
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-center"
+                >
+                  <div className="max-w-[90%] px-4 py-3 rounded-xl bg-destructive/10 border border-destructive/30">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-destructive">{error}</p>
+                        <div className="flex items-center gap-3 mt-2">
+                          {lastFailedMessage && (
+                            <button
+                              onClick={handleRetry}
+                              disabled={isLoading}
+                              className="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                              Retry
+                            </button>
+                          )}
+                          <button
+                            onClick={dismissError}
+                            className="text-xs text-muted-foreground hover:underline"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
 
@@ -322,16 +464,23 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
             >
               <div className="flex items-center gap-2 bg-input/80 rounded-full px-2">
                 <input
+                  ref={inputRef}
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 px-4 py-3 rounded-full bg-background border border-border focus:border-primary focus:outline-none transition-colors placeholder:text-muted-foreground text-black dark:text-white"
-                  disabled={isLoading}
+                  placeholder={
+                    isLoadingHistory
+                      ? "Loading chat..."
+                      : isLoading
+                      ? "Waiting for response..."
+                      : "Type a message..."
+                  }
+                  className="flex-1 px-4 py-3 rounded-full bg-background border border-border focus:border-primary focus:outline-none transition-colors placeholder:text-muted-foreground text-black dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={inputDisabled}
                 />
                 <motion.button
                   type="submit"
-                  disabled={!input.trim() || isLoading}
+                  disabled={!input.trim() || inputDisabled}
                   className="p-3 rounded-full bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                   whileTap={{ scale: 0.95 }}
                 >
