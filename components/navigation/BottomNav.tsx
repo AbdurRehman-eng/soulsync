@@ -4,7 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Home, ListTodo, Trophy, MoreHorizontal } from "lucide-react";
+import { Home, ListTodo, Trophy, MoreHorizontal, Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SoulSyncButton } from "./SoulSyncButton";
 import { MoodSelector } from "@/components/mood/MoodSelector";
@@ -13,7 +13,7 @@ import { useMoodStore } from "@/stores/moodStore";
 
 const navItems = [
   { href: "/", icon: Home, label: "Home" },
-  { href: "/tasks", icon: ListTodo, label: "Tasks" },
+  { href: "/discover", icon: Compass, label: "Discover" },
   { href: "/ranks", icon: Trophy, label: "Ranks" },
   { href: "/more", icon: MoreHorizontal, label: "More" },
 ];

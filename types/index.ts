@@ -68,7 +68,18 @@ export type CardType =
   | "journal"
   | "ad"
   | "prayer"
-  | "motivational";
+  | "motivational"
+  | "meme"
+  | "fact"
+  | "riddle"
+  | "joke"
+  | "thought_provoking"
+  | "visual"
+  | "share_card"
+  | "marketing"
+  | "milestone"
+  | "upgrade"
+  | "journal_prompt";
 
 export interface Card {
   id: string;
@@ -87,10 +98,16 @@ export interface Card {
   pin_end: string | null;
   publish_date: string | null;
   sort_order: number;
+  is_featured: boolean;
+  is_trending: boolean;
+  featured_start: string | null;
+  featured_end: string | null;
+  category_id: string | null;
   created_at: string;
   updated_at: string;
   // Relations
   moods?: CardMood[];
+  category?: ContentCategory;
 }
 
 export interface CardContent {
@@ -103,6 +120,7 @@ export interface CardContent {
   read_time?: number;
   // For prayers
   prayer_text?: string;
+  prayer_type?: string; // protection, guidance, anxiety, etc.
   // For motivational
   quote?: string;
   quote_author?: string;
@@ -112,8 +130,71 @@ export interface CardContent {
   prompt?: string;
   // For ads
   url?: string;
+  // For memes
+  meme_text_top?: string;
+  meme_text_bottom?: string;
+  // For facts
+  fact_text?: string;
+  fact_source?: string;
+  // For riddles
+  riddle_question?: string;
+  riddle_answer?: string;
+  riddle_hint?: string;
+  // For jokes
+  joke_setup?: string;
+  joke_punchline?: string;
+  // For thought provoking
+  thought_text?: string;
+  thought_source?: string;
+  // For visual/relax
+  visual_type?: string; // "image" | "animation" | "breathing"
+  visual_duration?: number; // seconds
+  // For share cards
+  share_mood?: string;
+  share_text?: string;
+  // For marketing
+  cta_text?: string;
+  cta_url?: string;
+  campaign_name?: string;
+  // For milestone
+  milestone_type?: string;
+  milestone_value?: number;
+  milestone_message?: string;
+  // For upgrade
+  upgrade_message?: string;
+  upgrade_features?: string[];
+  // For journal prompts
+  journal_prompt_text?: string;
+  journal_prompt_category?: string;
   // Common
   image_url?: string;
+}
+
+// ============================================
+// Content Categories
+// ============================================
+
+export interface ContentCategory {
+  id: string;
+  name: string;
+  slug: string;
+  display_name: string;
+  emoji: string;
+  description: string | null;
+  color: string;
+  gradient_from: string;
+  gradient_to: string;
+  icon_name: string | null;
+  sort_order: number;
+  is_active: boolean;
+  card_count?: number;
+  created_at: string;
+}
+
+export interface CardCategory {
+  card_id: string;
+  category_id: string;
+  category?: ContentCategory;
 }
 
 export interface CardMood {

@@ -12,7 +12,8 @@ import {
     Menu,
     X,
     ListTodo,
-    Trophy
+    Trophy,
+    FolderOpen,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ const navItems = [
     { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
     { href: "/admin/moods", icon: Smile, label: "Moods" },
     { href: "/admin/cards", icon: Files, label: "Content" },
+    { href: "/admin/categories", icon: FolderOpen, label: "Categories" },
     { href: "/admin/tasks", icon: ListTodo, label: "Tasks" },
     { href: "/admin/levels", icon: Trophy, label: "Levels" },
     { href: "/admin/users", icon: Users, label: "Users" },

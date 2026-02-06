@@ -296,6 +296,37 @@ export default function ContentPage() {
         return "bg-pink-500/20 text-pink-400";
       case "game":
         return "bg-orange-500/20 text-orange-400";
+      case "article":
+        return "bg-sky-500/20 text-sky-400";
+      case "prayer":
+        return "bg-green-500/20 text-green-400";
+      case "motivational":
+        return "bg-yellow-500/20 text-yellow-400";
+      case "meme":
+        return "bg-amber-500/20 text-amber-400";
+      case "fact":
+        return "bg-cyan-500/20 text-cyan-400";
+      case "riddle":
+        return "bg-violet-500/20 text-violet-400";
+      case "joke":
+        return "bg-lime-500/20 text-lime-400";
+      case "thought_provoking":
+        return "bg-indigo-500/20 text-indigo-400";
+      case "visual":
+        return "bg-emerald-500/20 text-emerald-400";
+      case "share_card":
+        return "bg-rose-500/20 text-rose-400";
+      case "marketing":
+        return "bg-red-500/20 text-red-400";
+      case "milestone":
+        return "bg-yellow-600/20 text-yellow-500";
+      case "upgrade":
+        return "bg-fuchsia-500/20 text-fuchsia-400";
+      case "journal":
+      case "journal_prompt":
+        return "bg-indigo-500/20 text-indigo-400";
+      case "task":
+        return "bg-teal-500/20 text-teal-400";
       default:
         return "bg-gray-500/20 text-gray-400";
     }
@@ -362,7 +393,7 @@ export default function ContentPage() {
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {["all", "verse", "devotional", "quiz", "game", "task"].map((t) => (
+          {["all", "verse", "devotional", "article", "prayer", "motivational", "quiz", "game", "task", "meme", "fact", "riddle", "joke", "thought_provoking", "visual", "share_card", "journal", "marketing", "milestone", "upgrade", "journal_prompt"].map((t) => (
             <button
               key={t}
               onClick={() => setFilter(t as any)}

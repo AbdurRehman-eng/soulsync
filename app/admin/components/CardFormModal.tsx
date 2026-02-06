@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Loader2, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card, CardType } from "@/types";
+import { Card, CardType, ContentCategory } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "react-hot-toast";
 
@@ -36,11 +36,56 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
     const [adText, setAdText] = useState("");
     const [adUrl, setAdUrl] = useState("");
 
+    // New content fields for extended card types
+    const [memeTextTop, setMemeTextTop] = useState("");
+    const [memeTextBottom, setMemeTextBottom] = useState("");
+    const [factText, setFactText] = useState("");
+    const [factSource, setFactSource] = useState("");
+    const [riddleQuestion, setRiddleQuestion] = useState("");
+    const [riddleAnswer, setRiddleAnswer] = useState("");
+    const [riddleHint, setRiddleHint] = useState("");
+    const [jokeSetup, setJokeSetup] = useState("");
+    const [jokePunchline, setJokePunchline] = useState("");
+    const [thoughtText, setThoughtText] = useState("");
+    const [thoughtSource, setThoughtSource] = useState("");
+    const [visualType, setVisualType] = useState("image");
+    const [shareText, setShareText] = useState("");
+    const [shareMood, setShareMood] = useState("happy");
+    const [ctaText, setCtaText] = useState("");
+    const [ctaUrl, setCtaUrl] = useState("");
+    const [upgradeMessage, setUpgradeMessage] = useState("");
+    const [journalPromptText, setJournalPromptText] = useState("");
+    const [imageUrl, setImageUrl] = useState("");
+
+    // Featured / Trending / Pin controls
+    const [isFeatured, setIsFeatured] = useState(false);
+    const [isTrending, setIsTrending] = useState(false);
+    const [isPinned, setIsPinned] = useState(false);
+    const [pinPosition, setPinPosition] = useState<number | null>(null);
+    const [pinStart, setPinStart] = useState("");
+    const [pinEnd, setPinEnd] = useState("");
+    const [featuredStart, setFeaturedStart] = useState("");
+    const [featuredEnd, setFeaturedEnd] = useState("");
+    const [categoryId, setCategoryId] = useState<string | null>(null);
+    const [categories, setCategories] = useState<ContentCategory[]>([]);
+
     const [loading, setLoading] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [aiTheme, setAiTheme] = useState("");
     const [showAiInput, setShowAiInput] = useState(false);
     const supabase = createClient();
+
+    // Fetch categories for dropdown
+    useEffect(() => {
+        const fetchCats = async () => {
+            const { data } = await supabase
+                .from("content_categories")
+                .select("*")
+                .order("sort_order", { ascending: true });
+            setCategories(data || []);
+        };
+        if (isOpen) fetchCats();
+    }, [isOpen]);
 
     useEffect(() => {
         if (card) {
@@ -64,6 +109,38 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
             setJournalPrompt(content.prompt || "");
             setAdText(content.body || "");
             setAdUrl(content.url || "");
+
+            // Extended fields
+            setMemeTextTop(content.meme_text_top || "");
+            setMemeTextBottom(content.meme_text_bottom || "");
+            setFactText(content.fact_text || "");
+            setFactSource(content.fact_source || "");
+            setRiddleQuestion(content.riddle_question || "");
+            setRiddleAnswer(content.riddle_answer || "");
+            setRiddleHint(content.riddle_hint || "");
+            setJokeSetup(content.joke_setup || "");
+            setJokePunchline(content.joke_punchline || "");
+            setThoughtText(content.thought_text || "");
+            setThoughtSource(content.thought_source || "");
+            setVisualType(content.visual_type || "image");
+            setShareText(content.share_text || "");
+            setShareMood(content.share_mood || "happy");
+            setCtaText(content.cta_text || "");
+            setCtaUrl(content.cta_url || "");
+            setUpgradeMessage(content.upgrade_message || "");
+            setJournalPromptText(content.journal_prompt_text || "");
+            setImageUrl(content.image_url || "");
+
+            // Featured/trending/pin
+            setIsFeatured(card.is_featured || false);
+            setIsTrending(card.is_trending || false);
+            setIsPinned(card.is_pinned || false);
+            setPinPosition(card.pin_position || null);
+            setPinStart(card.pin_start || "");
+            setPinEnd(card.pin_end || "");
+            setFeaturedStart(card.featured_start || "");
+            setFeaturedEnd(card.featured_end || "");
+            setCategoryId(card.category_id || null);
         } else {
             // Reset form
             setType("verse");
@@ -84,11 +161,42 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
             setJournalPrompt("");
             setAdText("");
             setAdUrl("");
+            setMemeTextTop("");
+            setMemeTextBottom("");
+            setFactText("");
+            setFactSource("");
+            setRiddleQuestion("");
+            setRiddleAnswer("");
+            setRiddleHint("");
+            setJokeSetup("");
+            setJokePunchline("");
+            setThoughtText("");
+            setThoughtSource("");
+            setVisualType("image");
+            setShareText("");
+            setShareMood("happy");
+            setCtaText("");
+            setCtaUrl("");
+            setUpgradeMessage("");
+            setJournalPromptText("");
+            setImageUrl("");
+            setIsFeatured(false);
+            setIsTrending(false);
+            setIsPinned(false);
+            setPinPosition(null);
+            setPinStart("");
+            setPinEnd("");
+            setFeaturedStart("");
+            setFeaturedEnd("");
+            setCategoryId(null);
         }
     }, [card, isOpen]);
 
     const buildContent = () => {
         const content: any = {};
+
+        // Always include image_url if set
+        if (imageUrl) content.image_url = imageUrl;
 
         switch (type) {
             case "verse":
@@ -117,6 +225,48 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
             case "ad":
                 content.body = adText;
                 content.url = adUrl;
+                break;
+            case "meme":
+                content.meme_text_top = memeTextTop;
+                content.meme_text_bottom = memeTextBottom;
+                break;
+            case "fact":
+                content.fact_text = factText;
+                content.fact_source = factSource;
+                break;
+            case "riddle":
+                content.riddle_question = riddleQuestion;
+                content.riddle_answer = riddleAnswer;
+                content.riddle_hint = riddleHint;
+                break;
+            case "joke":
+                content.joke_setup = jokeSetup;
+                content.joke_punchline = jokePunchline;
+                break;
+            case "thought_provoking":
+                content.thought_text = thoughtText;
+                content.thought_source = thoughtSource;
+                break;
+            case "visual":
+                content.visual_type = visualType;
+                break;
+            case "share_card":
+                content.share_text = shareText;
+                content.share_mood = shareMood;
+                break;
+            case "marketing":
+                content.body = body;
+                content.cta_text = ctaText;
+                content.cta_url = ctaUrl;
+                break;
+            case "upgrade":
+                content.upgrade_message = upgradeMessage;
+                break;
+            case "journal_prompt":
+                content.journal_prompt_text = journalPromptText;
+                break;
+            case "milestone":
+                content.body = body;
                 break;
         }
 
@@ -194,7 +344,7 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
 
         try {
             const content = buildContent();
-            const cardData = {
+            const cardData: any = {
                 type,
                 title: title.trim(),
                 subtitle: subtitle.trim() || null,
@@ -202,6 +352,15 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                 is_active: isActive,
                 points_reward: pointsReward,
                 min_membership_level: minMembershipLevel,
+                is_featured: isFeatured,
+                is_trending: isTrending,
+                is_pinned: isPinned,
+                pin_position: isPinned ? pinPosition : null,
+                pin_start: isPinned && pinStart ? pinStart : null,
+                pin_end: isPinned && pinEnd ? pinEnd : null,
+                featured_start: isFeatured && featuredStart ? featuredStart : null,
+                featured_end: isFeatured && featuredEnd ? featuredEnd : null,
+                category_id: categoryId || null,
             };
 
             if (card) {
@@ -423,6 +582,210 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                     </>
                 );
 
+            case "meme":
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Top Text</label>
+                            <input type="text" value={memeTextTop} onChange={(e) => setMemeTextTop(e.target.value)}
+                                placeholder="Top meme text..." className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Bottom Text</label>
+                            <input type="text" value={memeTextBottom} onChange={(e) => setMemeTextBottom(e.target.value)}
+                                placeholder="Bottom meme text..." className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Image URL</label>
+                            <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
+                                placeholder="https://..." className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                        </div>
+                    </>
+                );
+
+            case "fact":
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Fact Text *</label>
+                            <textarea value={factText} onChange={(e) => setFactText(e.target.value)}
+                                placeholder="An interesting fact..." rows={4}
+                                className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] resize-none" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Source</label>
+                            <input type="text" value={factSource} onChange={(e) => setFactSource(e.target.value)}
+                                placeholder="Source or attribution" className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                        </div>
+                    </>
+                );
+
+            case "riddle":
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Riddle Question *</label>
+                            <textarea value={riddleQuestion} onChange={(e) => setRiddleQuestion(e.target.value)}
+                                placeholder="What has keys but no locks?" rows={3}
+                                className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] resize-none" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Answer *</label>
+                            <input type="text" value={riddleAnswer} onChange={(e) => setRiddleAnswer(e.target.value)}
+                                placeholder="A piano!" className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Hint (optional)</label>
+                            <input type="text" value={riddleHint} onChange={(e) => setRiddleHint(e.target.value)}
+                                placeholder="Think about music..." className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                        </div>
+                    </>
+                );
+
+            case "joke":
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Setup *</label>
+                            <textarea value={jokeSetup} onChange={(e) => setJokeSetup(e.target.value)}
+                                placeholder="Why did the chicken cross the road?" rows={2}
+                                className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] resize-none" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Punchline *</label>
+                            <input type="text" value={jokePunchline} onChange={(e) => setJokePunchline(e.target.value)}
+                                placeholder="To get to the other side!" className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" required />
+                        </div>
+                    </>
+                );
+
+            case "thought_provoking":
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Thought Text *</label>
+                            <textarea value={thoughtText} onChange={(e) => setThoughtText(e.target.value)}
+                                placeholder="A thought provoking statement or question..." rows={4}
+                                className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] resize-none" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Source / Author</label>
+                            <input type="text" value={thoughtSource} onChange={(e) => setThoughtSource(e.target.value)}
+                                placeholder="Author or source" className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                        </div>
+                    </>
+                );
+
+            case "visual":
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Visual Type</label>
+                            <select value={visualType} onChange={(e) => setVisualType(e.target.value)}
+                                className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]">
+                                <option value="image">Image</option>
+                                <option value="breathing">Breathing Exercise</option>
+                                <option value="animation">Animation</option>
+                            </select>
+                        </div>
+                        {visualType === "image" && (
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Image URL</label>
+                                <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
+                                    placeholder="https://..." className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                            </div>
+                        )}
+                    </>
+                );
+
+            case "share_card":
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Share Text *</label>
+                            <textarea value={shareText} onChange={(e) => setShareText(e.target.value)}
+                                placeholder="An encouraging message to share..." rows={3}
+                                className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] resize-none" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Mood</label>
+                            <select value={shareMood} onChange={(e) => setShareMood(e.target.value)}
+                                className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]">
+                                <option value="happy">Happy</option>
+                                <option value="sad">Sad</option>
+                                <option value="grateful">Grateful</option>
+                                <option value="anxious">Anxious</option>
+                                <option value="lonely">Lonely</option>
+                                <option value="angry">Angry</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Image URL (optional)</label>
+                            <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
+                                placeholder="https://..." className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                        </div>
+                    </>
+                );
+
+            case "marketing":
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Body Text *</label>
+                            <textarea value={body} onChange={(e) => setBody(e.target.value)}
+                                placeholder="Marketing message..." rows={4}
+                                className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] resize-none" required />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">CTA Text</label>
+                                <input type="text" value={ctaText} onChange={(e) => setCtaText(e.target.value)}
+                                    placeholder="Learn More" className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">CTA URL</label>
+                                <input type="url" value={ctaUrl} onChange={(e) => setCtaUrl(e.target.value)}
+                                    placeholder="https://..." className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Image URL</label>
+                            <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
+                                placeholder="https://..." className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                        </div>
+                    </>
+                );
+
+            case "upgrade":
+                return (
+                    <div>
+                        <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Upgrade Message</label>
+                        <textarea value={upgradeMessage} onChange={(e) => setUpgradeMessage(e.target.value)}
+                            placeholder="Support the movement and unlock everything..." rows={3}
+                            className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] resize-none" />
+                    </div>
+                );
+
+            case "journal_prompt":
+                return (
+                    <div>
+                        <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Journal Prompt *</label>
+                        <textarea value={journalPromptText} onChange={(e) => setJournalPromptText(e.target.value)}
+                            placeholder="What are you grateful for today?" rows={3}
+                            className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] resize-none" required />
+                    </div>
+                );
+
+            case "milestone":
+                return (
+                    <div>
+                        <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Milestone Message</label>
+                        <textarea value={body} onChange={(e) => setBody(e.target.value)}
+                            placeholder="Congratulations on reaching this milestone!" rows={3}
+                            className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] resize-none" />
+                    </div>
+                );
+
             case "quiz":
             case "game":
                 return (
@@ -431,7 +794,7 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                             {type.charAt(0).toUpperCase() + type.slice(1)} content requires a dedicated editor
                         </p>
                         <p className="text-sm text-[var(--muted-foreground)]">
-                            Use the specialized {type} creator (coming soon)
+                            Use the specialized {type} creator
                         </p>
                     </div>
                 );
@@ -439,7 +802,7 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
             default:
                 return (
                     <div className="text-center py-8 text-[var(--muted-foreground)]">
-                        Content type "{type}" editor coming soon
+                        Content type &ldquo;{type}&rdquo; editor coming soon
                     </div>
                 );
         }
@@ -561,15 +924,34 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                                         className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] capitalize"
                                         disabled={!!card}
                                     >
-                                        <option value="verse">Verse</option>
-                                        <option value="devotional">Devotional</option>
-                                        <option value="article">Article</option>
-                                        <option value="prayer">Prayer</option>
-                                        <option value="motivational">Motivational</option>
-                                        <option value="task">Task</option>
-                                        <option value="quiz">Quiz</option>
-                                        <option value="game">Game</option>
-                                        <option value="journal">Journal</option>
+                                        <optgroup label="Core Content">
+                                            <option value="verse">Verse</option>
+                                            <option value="devotional">Devotional</option>
+                                            <option value="article">Article</option>
+                                            <option value="prayer">Prayer</option>
+                                            <option value="motivational">Motivational</option>
+                                        </optgroup>
+                                        <optgroup label="Interactive">
+                                            <option value="quiz">Quiz</option>
+                                            <option value="game">Game</option>
+                                            <option value="task">Task</option>
+                                            <option value="journal">Journal</option>
+                                        </optgroup>
+                                        <optgroup label="Fun &amp; Engagement">
+                                            <option value="meme">Meme</option>
+                                            <option value="fact">Fact</option>
+                                            <option value="riddle">Riddle</option>
+                                            <option value="joke">Joke</option>
+                                            <option value="thought_provoking">Thought Provoking</option>
+                                            <option value="visual">Visual / Relax</option>
+                                            <option value="share_card">Share Card</option>
+                                        </optgroup>
+                                        <optgroup label="Special Cards">
+                                            <option value="marketing">Marketing</option>
+                                            <option value="milestone">Milestone</option>
+                                            <option value="upgrade">Upgrade Prompt</option>
+                                            <option value="journal_prompt">Journal Prompt</option>
+                                        </optgroup>
                                     </select>
                                 </div>
 
@@ -632,6 +1014,89 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                                             <option value={3}>Premium (3)</option>
                                         </select>
                                     </div>
+                                </div>
+
+                                {/* Category Selection */}
+                                <div className="pt-4 border-t border-[var(--border)]">
+                                    <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
+                                        Category
+                                    </label>
+                                    <select
+                                        value={categoryId || ""}
+                                        onChange={(e) => setCategoryId(e.target.value || null)}
+                                        className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]"
+                                    >
+                                        <option value="">No category (auto-detect by type)</option>
+                                        {categories.map((cat) => (
+                                            <option key={cat.id} value={cat.id}>
+                                                {cat.emoji} {cat.display_name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Featured / Trending / Pin Controls */}
+                                <div className="space-y-3 pt-4 border-t border-[var(--border)]">
+                                    <h4 className="text-sm font-semibold text-[var(--foreground)]">Visibility & Placement</h4>
+
+                                    <div className="flex items-center gap-3">
+                                        <input type="checkbox" id="isFeatured" checked={isFeatured} onChange={(e) => setIsFeatured(e.target.checked)}
+                                            className="w-4 h-4 rounded" />
+                                        <label htmlFor="isFeatured" className="text-sm font-medium text-[var(--foreground)]">
+                                            ⭐ Featured (shows in featured section)
+                                        </label>
+                                    </div>
+                                    {isFeatured && (
+                                        <div className="grid grid-cols-2 gap-4 pl-7">
+                                            <div>
+                                                <label className="block text-xs text-[var(--muted-foreground)] mb-1">Featured Start</label>
+                                                <input type="date" value={featuredStart} onChange={(e) => setFeaturedStart(e.target.value)}
+                                                    className="w-full px-3 py-1.5 rounded-lg bg-[var(--background)] border border-[var(--border)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs text-[var(--muted-foreground)] mb-1">Featured End</label>
+                                                <input type="date" value={featuredEnd} onChange={(e) => setFeaturedEnd(e.target.value)}
+                                                    className="w-full px-3 py-1.5 rounded-lg bg-[var(--background)] border border-[var(--border)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center gap-3">
+                                        <input type="checkbox" id="isTrending" checked={isTrending} onChange={(e) => setIsTrending(e.target.checked)}
+                                            className="w-4 h-4 rounded" />
+                                        <label htmlFor="isTrending" className="text-sm font-medium text-[var(--foreground)]">
+                                            🔥 Trending (shows in trending section)
+                                        </label>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        <input type="checkbox" id="isPinned" checked={isPinned} onChange={(e) => setIsPinned(e.target.checked)}
+                                            className="w-4 h-4 rounded" />
+                                        <label htmlFor="isPinned" className="text-sm font-medium text-[var(--foreground)]">
+                                            📌 Pin in Feed (set position and date range)
+                                        </label>
+                                    </div>
+                                    {isPinned && (
+                                        <div className="space-y-3 pl-7">
+                                            <div>
+                                                <label className="block text-xs text-[var(--muted-foreground)] mb-1">Pin Position (1 = top of feed)</label>
+                                                <input type="number" min={1} max={30} value={pinPosition || ""} onChange={(e) => setPinPosition(parseInt(e.target.value) || null)}
+                                                    placeholder="e.g. 3" className="w-full px-3 py-1.5 rounded-lg bg-[var(--background)] border border-[var(--border)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs text-[var(--muted-foreground)] mb-1">Pin Start</label>
+                                                    <input type="date" value={pinStart} onChange={(e) => setPinStart(e.target.value)}
+                                                        className="w-full px-3 py-1.5 rounded-lg bg-[var(--background)] border border-[var(--border)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-[var(--muted-foreground)] mb-1">Pin End</label>
+                                                    <input type="date" value={pinEnd} onChange={(e) => setPinEnd(e.target.value)}
+                                                        className="w-full px-3 py-1.5 rounded-lg bg-[var(--background)] border border-[var(--border)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Active Status */}

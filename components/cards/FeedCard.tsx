@@ -17,6 +17,17 @@ import { GameCard } from "./GameCard";
 import { TaskCard } from "./TaskCard";
 import { PrayerCard } from "./PrayerCard";
 import { MotivationalCard } from "./MotivationalCard";
+import { MemeCard } from "./MemeCard";
+import { FactCard } from "./FactCard";
+import { RiddleCard } from "./RiddleCard";
+import { JokeCard } from "./JokeCard";
+import { ThoughtProvokingCard } from "./ThoughtProvokingCard";
+import { VisualCard } from "./VisualCard";
+import { ShareCard } from "./ShareCard";
+import { MarketingCard } from "./MarketingCard";
+import { MilestoneCard } from "./MilestoneCard";
+import { UpgradeCard } from "./UpgradeCard";
+import { JournalPromptCard } from "./JournalPromptCard";
 
 interface FeedCardProps {
   card: Card;
@@ -124,6 +135,29 @@ function getCardComponent(type: Card["type"]) {
       return PrayerCard;
     case "motivational":
       return MotivationalCard;
+    case "meme":
+      return MemeCard;
+    case "fact":
+      return FactCard;
+    case "riddle":
+      return RiddleCard;
+    case "joke":
+      return JokeCard;
+    case "thought_provoking":
+      return ThoughtProvokingCard;
+    case "visual":
+      return VisualCard;
+    case "share_card":
+      return ShareCard;
+    case "marketing":
+      return MarketingCard;
+    case "milestone":
+      return MilestoneCard;
+    case "upgrade":
+      return UpgradeCard;
+    case "journal_prompt":
+    case "journal":
+      return JournalPromptCard;
     default:
       return DefaultCard;
   }
