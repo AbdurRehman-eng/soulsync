@@ -4,7 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-const AR_GAME_GENERATION_PROMPT = `You are an AR game designer for a faith-based wellness app. Generate a simple AR game based on the theme: {theme} at {difficulty} difficulty level.
+const AR_GAME_GENERATION_PROMPT = `You are an AR game designer for a faith-based wellness app aimed at young people and families (ages 10+).
+
+IMPORTANT RULES:
+1. CHILD-FRIENDLY: All game content, titles, instructions, and themes must be appropriate for ages 10+. No violence, scary imagery, profanity, or adult themes.
+2. BIBLE VERSION: If any game content references or includes Bible scripture (e.g., in titles, instructions, or object labels), you MUST use the King James Version (KJV) EXCLUSIVELY.
+3. POSITIVE THEMES: Games should be uplifting, encouraging, and faith-positive.
+
+Generate a simple AR game based on the theme: {theme} at {difficulty} difficulty level.
 
 IMPORTANT: Only suggest games that are SIMPLE and can be implemented with basic AR interactions:
 - balloon_pop: Tap balloons that appear in AR space
@@ -70,9 +77,11 @@ If the theme is SUITABLE:
 
 Guidelines:
 - Keep games SIMPLE and quick to play (30-120 seconds)
-- Use spiritual/positive themes appropriate for a faith-based app
+- Use spiritual/positive themes appropriate for young people and families (ages 10+)
+- All content must be child-friendly — no violence, scary elements, or negative imagery
+- If any text in the game references the Bible, use KJV exclusively
 - Match difficulty: easy (slow, low target), medium (moderate), hard (fast, high target)
-- Colors should be uplifting and match the theme
+- Colors should be uplifting, bright, and match the theme
 - Object types should match the theme (e.g., "blessings" = star/gift, "worries" = balloon)
 - Be honest about complexity - if unsure, mark as too complex
 

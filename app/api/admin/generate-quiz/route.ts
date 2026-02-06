@@ -6,6 +6,11 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 const QUIZ_GENERATION_PROMPT = `Generate an educational and engaging quiz about {theme} with {numQuestions} questions at {difficulty} difficulty level.
 
+IMPORTANT RULES:
+1. BIBLE VERSION: If ANY question, option, or explanation references or quotes the Bible, you MUST use the King James Version (KJV) EXCLUSIVELY. Never use NIV, ESV, NLT, or any other translation. Quote the exact KJV wording.
+2. CHILD-FRIENDLY: All content must be appropriate for ages 10+. Use simple, clear, encouraging language. No violence, profanity, or adult themes.
+3. REFERENCES: When citing scripture in explanations, include the full reference (e.g., "Genesis 1:1 KJV") and the exact KJV text.
+
 Return ONLY valid JSON in this EXACT format:
 {
   "title": "An engaging quiz title (4-7 words)",
@@ -15,23 +20,24 @@ Return ONLY valid JSON in this EXACT format:
       "question": "The question text (clear and specific)",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correct_answer": 0,
-      "explanation": "Brief explanation of why this is the correct answer (1-2 sentences)"
+      "explanation": "Brief explanation of why this is the correct answer (1-2 sentences). If quoting the Bible, use exact KJV text."
     }
   ]
 }
 
 Guidelines:
-- Make questions educational but engaging
+- Make questions educational but fun and engaging for young people
 - All 4 options should be plausible to avoid obvious answers
-- Questions should test understanding, not just memorization
-- Explanations should teach something new or reinforce the concept
+- Questions should test understanding, not just memorisation
+- Explanations should teach something new in simple, child-friendly language
+- Any Bible quotes must be the exact KJV wording with the reference
 - For {difficulty} difficulty:
-  * easy: straightforward questions with clear answers
+  * easy: straightforward questions with clear answers, suitable for younger users
   * medium: requires some thought and knowledge
-  * hard: complex questions that test deep understanding
-- Questions should be appropriate for a faith-based audience
-- Avoid controversial or divisive topics
-- Use clear, simple language
+  * hard: deeper questions that test understanding (but still age-appropriate)
+- All content must be appropriate for a young, faith-based audience (ages 10+)
+- Avoid controversial, divisive, or theologically complex topics
+- Use clear, simple language throughout
 
 Return ONLY the JSON object, no additional text or formatting.`;
 

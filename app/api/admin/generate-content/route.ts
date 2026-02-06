@@ -4,101 +4,134 @@ import { createClient } from "@/lib/supabase/server";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+// ── GLOBAL RULES injected into every content generation prompt ──
+const GLOBAL_RULES = `
+IMPORTANT RULES (apply to ALL generated content):
+1. BIBLE VERSION: If you include ANY Bible verse or scripture reference, you MUST use the King James Version (KJV) EXCLUSIVELY. Never use NIV, ESV, NLT, NASB, or any other translation. Quote the exact KJV wording.
+2. CHILD-FRIENDLY: All content must be appropriate for ages 10+. Use simple, warm, encouraging language. No profanity, innuendo, graphic descriptions, scary imagery, or adult-only topics.
+3. REFERENCES: When citing a Bible verse, always include the full reference (e.g., "John 3:16 KJV") and the complete verse text from the King James Version.
+`;
+
 // Content generation prompts for each type
 const GENERATION_PROMPTS = {
-  verse: `Generate meaningful inspirational text with the following structure:
+  verse: `Generate a Bible verse card with the following structure:
 {
-  "verse_text": "The complete text - can be a Bible verse, wisdom quote, philosophical saying, or inspirational passage (50-150 words)",
-  "verse_reference": "Source attribution (e.g., 'John 3:16', 'Rumi', 'Ancient Wisdom', 'Marcus Aurelius', or 'Unknown')",
+  "verse_text": "The EXACT text of the Bible verse from the King James Version (KJV). Must be word-for-word KJV.",
+  "verse_reference": "The Bible reference (e.g., 'John 3:16 KJV', 'Philippians 4:13 KJV')",
   "title": "A short, engaging title (2-5 words)",
   "subtitle": "Optional brief description of the theme"
 }
 
+${GLOBAL_RULES}
+
 Theme: {theme}
-Content can be:
-- Bible verses (NIV or NLT style)
-- Quotes from philosophers, poets, or thinkers
-- Wisdom from various spiritual or philosophical traditions
-- Original inspirational passages
 
-Make it uplifting, relevant, and easy to understand. Return only valid JSON.`,
+Guidelines:
+- The verse_text MUST be the exact King James Version wording — do NOT paraphrase or modernise
+- Choose a verse that is uplifting, relevant to the theme, and easy for young people to understand
+- If the KJV wording is archaic, that's fine — the app will display it as-is
+- The title should be catchy and child-friendly
 
-  devotional: `Generate an inspirational reflection or message with the following structure:
+Return only valid JSON.`,
+
+  devotional: `Generate a faith-based devotional reflection with the following structure:
 {
   "title": "A compelling title (3-7 words)",
   "subtitle": "A brief subtitle describing the theme",
-  "body": "A 150-250 word inspirational message that is encouraging, practical, and relatable. Can be a reflection, meditation, life lesson, or motivational message. Include a reflection question or actionable takeaway.",
+  "body": "A 150-250 word devotional message. If you reference any Bible verse, you MUST quote the exact King James Version (KJV) text and include the reference (e.g., Proverbs 3:5-6 KJV). The message should be encouraging, practical, and relatable for young people and families. Include a reflection question or actionable takeaway.",
   "author": "Soul Sync Team"
 }
 
+${GLOBAL_RULES}
+
 Theme: {theme}
-Content can be:
-- Personal reflections on life and growth
-- Philosophical insights and wisdom
-- Motivational messages for daily challenges
-- Mindfulness and self-improvement guidance
-- Universal spiritual principles
 
-Make it warm, personal, authentic, and universally relatable without being preachy. Return only valid JSON.`,
+Guidelines:
+- Include at least one KJV Bible verse reference with the full verse text
+- Write in a warm, personal tone suitable for ages 10+
+- Avoid complex theological jargon — keep it accessible
+- End with an encouraging reflection question or practical action step
 
-  prayer: `Generate a heartfelt prayer, affirmation, or intention with the following structure:
+Return only valid JSON.`,
+
+  prayer: `Generate a heartfelt Christian prayer with the following structure:
 {
-  "title": "A meaningful title (2-5 words, e.g., 'Morning Prayer', 'Peace Affirmation', 'Daily Intention', 'Meditation for Strength')",
+  "title": "A meaningful title (2-5 words, e.g., 'Morning Prayer', 'Prayer for Peace', 'Prayer for Guidance')",
   "subtitle": null,
-  "prayer_text": "A 100-150 word prayer, affirmation, meditation, or intention that is sincere, hopeful, and accessible. Use conversational, inclusive language."
+  "prayer_text": "A 100-150 word prayer that is sincere, hopeful, and appropriate for young people and families. If you include any scripture, use the exact King James Version (KJV) wording."
 }
 
-Theme: {theme}
-Content can be:
-- Traditional prayers from various faiths
-- Positive affirmations
-- Mindfulness meditations
-- Gratitude expressions
-- Intention-setting statements
-- Universal spiritual messages
+${GLOBAL_RULES}
 
-Make it inclusive, comforting, and accessible to all beliefs. Return only valid JSON.`,
+Theme: {theme}
+
+Guidelines:
+- Write in a conversational, reverent tone appropriate for all ages
+- May optionally weave in KJV scripture naturally within the prayer
+- Keep the language warm, comforting, and child-friendly
+- Avoid heavy or frightening imagery
+
+Return only valid JSON.`,
 
   motivational: `Generate an inspirational motivational quote with the following structure:
 {
   "title": "A catchy, theme-related title (2-5 words, e.g., 'Rise and Shine', 'Stay Strong', 'Keep Moving Forward')",
   "subtitle": "Optional context or category (e.g., 'Words of wisdom', 'Daily motivation', or null)",
-  "quote": "A powerful, memorable quote (15-40 words)",
-  "quote_author": "The author's name (can be a famous person, thinker, or 'Unknown' if creating an original quote)"
+  "quote": "A powerful, memorable quote (15-40 words). If the quote is from or references the Bible, it MUST be the exact KJV wording.",
+  "quote_author": "The author's name (can be a famous person, or 'Unknown' if creating an original quote)"
 }
 
+${GLOBAL_RULES}
+
 Theme: {theme}
-The quote can be:
-- Famous quotes from well-known figures
-- Original inspirational sayings
-- Wisdom from various sources (not limited to religious texts)
-- Motivational affirmations or positive messages
 
-Make it uplifting, actionable, and universally relatable. Return only valid JSON.`,
+Guidelines:
+- The quote should be uplifting, positive, and appropriate for young people
+- If using a Bible verse as the quote, use the exact KJV text and set quote_author to the reference (e.g., "Proverbs 3:5 KJV")
+- Make it actionable and universally encouraging
 
-  article: `Generate an informative article with the following structure:
+Return only valid JSON.`,
+
+  article: `Generate an informative, faith-friendly article with the following structure:
 {
   "title": "An engaging article title (4-8 words)",
   "subtitle": "A compelling subtitle",
-  "body": "A 200-300 word article that is informative, practical, and encouraging. Include 3-5 actionable tips or insights. Use short paragraphs for readability.",
+  "body": "A 200-300 word article that is informative, practical, and encouraging. Include 3-5 actionable tips or insights. Use short paragraphs for readability. If you reference any Bible verse, you MUST quote the exact King James Version (KJV) text with the reference.",
   "author": "Soul Sync Team",
   "read_time": 3
 }
 
+${GLOBAL_RULES}
+
 Topic: {theme}
-Make it practical and relatable. Return only valid JSON.`,
+
+Guidelines:
+- Write in clear, simple language suitable for ages 10+
+- Any Bible references must use KJV exclusively
+- Include practical, actionable advice
+- Keep paragraphs short for mobile readability
+
+Return only valid JSON.`,
 
   task: `Generate a meaningful daily task with the following structure:
 {
   "title": "A clear, actionable task title (3-6 words)",
   "subtitle": "A brief description of what the user should do (10-20 words)",
-  "description": "A motivating explanation of why this task matters (20-40 words)"
+  "description": "A motivating explanation of why this task matters (20-40 words). If referencing scripture, use KJV."
 }
 
-Theme: {theme}
-Make it achievable and meaningful. Return only valid JSON.`,
+${GLOBAL_RULES}
 
-  quiz: `Generate an educational quiz with the following structure:
+Theme: {theme}
+
+Guidelines:
+- Make the task achievable for young people and adults alike
+- Keep language positive, warm, and encouraging
+- The task should be something that can be done in a day
+
+Return only valid JSON.`,
+
+  quiz: `Generate an educational Bible/faith quiz with the following structure:
 {
   "title": "An engaging quiz title (4-7 words)",
   "subtitle": "What the quiz is about",
@@ -107,13 +140,23 @@ Make it achievable and meaningful. Return only valid JSON.`,
       "question": "The question text",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correct_answer": 0,
-      "explanation": "Brief explanation of the correct answer"
+      "explanation": "Brief explanation of the correct answer. If quoting scripture, use the exact KJV text."
     }
   ]
 }
 
+${GLOBAL_RULES}
+
 Topic: {theme}
-Create 3-5 questions. Make them educational but fun. Return only valid JSON.`,
+
+Guidelines:
+- Create 3-5 questions suitable for young people and families
+- All Bible references and quotes must use King James Version (KJV) exclusively
+- Make questions educational but fun — test understanding, not just memorisation
+- Explanations should teach something new in simple, child-friendly language
+- Avoid trick questions or overly complex theology
+
+Return only valid JSON.`,
 };
 
 export async function POST(request: NextRequest) {
