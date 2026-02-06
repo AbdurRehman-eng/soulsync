@@ -11,6 +11,7 @@ import {
   Trash2,
   AlertCircle,
   RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import { Mascot, MascotState } from "./Mascot";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,52 @@ interface MascotChatProps {
   onClose: () => void;
 }
 
+// ============================================
+// Voice helpers
+// ============================================
+const VOICE_STORAGE_KEY = "soul-sync-tts-voice";
+
+function getStoredVoiceName(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(VOICE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeVoiceName(name: string) {
+  try {
+    localStorage.setItem(VOICE_STORAGE_KEY, name);
+  } catch {
+    // ignore
+  }
+}
+
+/** Score a voice so we can sort the list — higher = better default */
+function scoreVoice(v: SpeechSynthesisVoice): number {
+  let s = 0;
+  const n = v.name.toLowerCase();
+  // Prefer English
+  if (v.lang.startsWith("en")) s += 100;
+  // Prefer online / high-quality voices
+  if (!v.localService) s += 50;
+  // Prefer voices with "Google", "Microsoft", "Samantha", "Natural", "Neural"
+  if (/google|microsoft|natural|neural|samantha|zira|david|aria|jenny|guy/i.test(n)) s += 30;
+  // Prefer female-ish names (warmer tone for a buddy)
+  if (/samantha|zira|aria|jenny|karen|moira|fiona|tessa|victoria/i.test(n)) s += 10;
+  // De-prioritise novelty / compact
+  if (/compact|espeak/i.test(n)) s -= 40;
+  return s;
+}
+
+function sortVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
+  return [...voices].sort((a, b) => scoreVoice(b) - scoreVoice(a));
+}
+
+// ============================================
+// Component
+// ============================================
 export function MascotChat({ isOpen, onClose }: MascotChatProps) {
   const { isAuthenticated } = useUserStore();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -40,12 +87,74 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
   const [mascotState, setMascotState] = useState<MascotState>("idle");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(false);
-  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(
-    null
-  );
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
+  const [showVoicePicker, setShowVoicePicker] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceName, setSelectedVoiceName] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const voicePickerRef = useRef<HTMLDivElement>(null);
 
+  // ------------------------------------------
+  // Load available TTS voices
+  // ------------------------------------------
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
+    const loadVoices = () => {
+      const voices = speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        setAvailableVoices(sortVoices(voices));
+        // Restore saved preference
+        const stored = getStoredVoiceName();
+        if (stored && voices.some((v) => v.name === stored)) {
+          setSelectedVoiceName(stored);
+        } else {
+          // Pick best default
+          const sorted = sortVoices(voices);
+          if (sorted.length > 0) {
+            setSelectedVoiceName(sorted[0].name);
+          }
+        }
+      }
+    };
+
+    loadVoices();
+    // Chrome fires this event async
+    speechSynthesis.addEventListener("voiceschanged", loadVoices);
+    return () => {
+      speechSynthesis.removeEventListener("voiceschanged", loadVoices);
+    };
+  }, []);
+
+  // Close voice picker when clicking outside
+  useEffect(() => {
+    if (!showVoicePicker) return;
+    const handleClick = (e: MouseEvent) => {
+      if (voicePickerRef.current && !voicePickerRef.current.contains(e.target as Node)) {
+        setShowVoicePicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showVoicePicker]);
+
+  // ------------------------------------------
+  // Cancel speech on close or unmount
+  // ------------------------------------------
+  useEffect(() => {
+    if (!isOpen) {
+      cancelSpeech();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    return () => cancelSpeech();
+  }, []);
+
+  // ------------------------------------------
+  // Scroll, focus, history
+  // ------------------------------------------
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -54,26 +163,21 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
     scrollToBottom();
   }, [messages, error]);
 
-  // Load chat history when opening the chat (if authenticated)
   useEffect(() => {
     if (isOpen && isAuthenticated && !historyLoaded) {
       loadChatHistory();
     } else if (isOpen && !isAuthenticated) {
-      // Not authenticated - mark as loaded so input is enabled
       setHistoryLoaded(true);
     }
   }, [isOpen, isAuthenticated, historyLoaded]);
 
-  // Focus input when ready
   useEffect(() => {
     if (isOpen && historyLoaded && !isLoadingHistory && inputRef.current) {
-      // Small delay to let animation finish
       const timer = setTimeout(() => inputRef.current?.focus(), 300);
       return () => clearTimeout(timer);
     }
   }, [isOpen, historyLoaded, isLoadingHistory]);
 
-  // Reset state when chat closes
   useEffect(() => {
     if (!isOpen) {
       setError(null);
@@ -81,21 +185,93 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
     }
   }, [isOpen]);
 
+  // ------------------------------------------
+  // Speech helpers
+  // ------------------------------------------
+  const cancelSpeech = () => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+    // Only reset mascot if it was talking
+    setMascotState((prev) => (prev === "talking" ? "idle" : prev));
+  };
+
+  const speak = (text: string) => {
+    if (!ttsEnabled || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
+    // Always cancel any ongoing speech first
+    speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+
+    // Apply selected voice
+    if (selectedVoiceName) {
+      const voice = availableVoices.find((v) => v.name === selectedVoiceName);
+      if (voice) {
+        utterance.voice = voice;
+      }
+    }
+
+    utterance.rate = 0.95;
+    utterance.pitch = 1.05;
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+      setMascotState("talking");
+    };
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setMascotState("idle");
+    };
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      setMascotState("idle");
+    };
+
+    speechSynthesis.speak(utterance);
+  };
+
+  // ------------------------------------------
+  // Voice selection
+  // ------------------------------------------
+  const handleVoiceSelect = (voiceName: string) => {
+    setSelectedVoiceName(voiceName);
+    storeVoiceName(voiceName);
+    setShowVoicePicker(false);
+
+    // Preview the voice with a short sample
+    if ("speechSynthesis" in window) {
+      speechSynthesis.cancel();
+      const preview = new SpeechSynthesisUtterance("Hi, I'm Soul Buddy!");
+      const voice = availableVoices.find((v) => v.name === voiceName);
+      if (voice) preview.voice = voice;
+      preview.rate = 0.95;
+      preview.pitch = 1.05;
+      preview.onstart = () => setIsSpeaking(true);
+      preview.onend = () => setIsSpeaking(false);
+      preview.onerror = () => setIsSpeaking(false);
+      speechSynthesis.speak(preview);
+    }
+  };
+
+  const selectedVoice = availableVoices.find((v) => v.name === selectedVoiceName);
+
+  // ------------------------------------------
+  // Chat history
+  // ------------------------------------------
   const loadChatHistory = async () => {
     try {
       setIsLoadingHistory(true);
       setError(null);
       const response = await fetch("/api/chat?limit=50");
-
       if (!response.ok) {
         if (response.status === 401) {
-          // Not authenticated - that's fine, just skip history
           setHistoryLoaded(true);
           return;
         }
         throw new Error("Failed to load chat history");
       }
-
       const data = await response.json();
       const historyMessages = (data.messages || []).map((msg: any) => ({
         id: msg.id,
@@ -107,7 +283,6 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
       setHistoryLoaded(true);
     } catch (err) {
       console.error("Failed to load chat history:", err);
-      // Still allow the user to chat even if history fails
       setHistoryLoaded(true);
       setError("Couldn't load your chat history, but you can still chat.");
     } finally {
@@ -116,19 +291,12 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
   };
 
   const clearChatHistory = async () => {
-    if (
-      !confirm(
-        "Are you sure you want to clear your chat history? This cannot be undone."
-      )
-    )
+    if (!confirm("Are you sure you want to clear your chat history? This cannot be undone."))
       return;
-
     try {
       if (isAuthenticated) {
         const response = await fetch("/api/chat", { method: "DELETE" });
-        if (!response.ok) {
-          throw new Error("Failed to delete chat history");
-        }
+        if (!response.ok) throw new Error("Failed to delete chat history");
       }
       setMessages([]);
       setError(null);
@@ -139,9 +307,15 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
     }
   };
 
+  // ------------------------------------------
+  // Send message
+  // ------------------------------------------
   const sendMessage = useCallback(
     async (messageText: string) => {
       if (!messageText.trim() || isLoading) return;
+
+      // Stop any ongoing speech when user sends a new message
+      cancelSpeech();
 
       setError(null);
       setLastFailedMessage(null);
@@ -173,9 +347,7 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(
-            data.error || `Request failed with status ${response.status}`
-          );
+          throw new Error(data.error || `Request failed with status ${response.status}`);
         }
 
         if (!data.message) {
@@ -190,27 +362,17 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
-        setMascotState("talking");
 
-        // Text-to-speech
-        if (ttsEnabled && "speechSynthesis" in window) {
-          const utterance = new SpeechSynthesisUtterance(data.message);
-          utterance.rate = 0.9;
-          utterance.pitch = 1.1;
-          utterance.onstart = () => setIsSpeaking(true);
-          utterance.onend = () => {
-            setIsSpeaking(false);
-            setMascotState("idle");
-          };
-          speechSynthesis.speak(utterance);
-        } else {
+        // Speak the response
+        speak(data.message);
+
+        if (!ttsEnabled) {
+          setMascotState("talking");
           setTimeout(() => setMascotState("idle"), 2000);
         }
       } catch (err: any) {
         const errorMsg =
-          err instanceof Error
-            ? err.message
-            : "Something went wrong. Please try again.";
+          err instanceof Error ? err.message : "Something went wrong. Please try again.";
         setError(errorMsg);
         setLastFailedMessage(messageText.trim());
         setMascotState("idle");
@@ -218,7 +380,7 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
         setIsLoading(false);
       }
     },
-    [isLoading, messages, ttsEnabled]
+    [isLoading, messages, ttsEnabled, selectedVoiceName, availableVoices]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -238,16 +400,16 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
     setLastFailedMessage(null);
   };
 
-  const stopSpeaking = () => {
-    if ("speechSynthesis" in window) {
-      speechSynthesis.cancel();
-      setIsSpeaking(false);
-      setMascotState("idle");
-    }
+  const handleClose = () => {
+    cancelSpeech();
+    onClose();
   };
 
-  // Determine if input should be disabled
   const inputDisabled = isLoading || (isLoadingHistory && !historyLoaded);
+
+  // Group voices by language for the picker
+  const englishVoices = availableVoices.filter((v) => v.lang.startsWith("en"));
+  const otherVoices = availableVoices.filter((v) => !v.lang.startsWith("en"));
 
   return (
     <AnimatePresence>
@@ -276,11 +438,13 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
                       ? "Loading history..."
                       : isLoading
                       ? "Thinking..."
+                      : isSpeaking
+                      ? "Speaking..."
                       : "Online"}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 {messages.length > 0 && isAuthenticated && (
                   <button
                     onClick={clearChatHistory}
@@ -296,20 +460,155 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
                     />
                   </button>
                 )}
-                <button
-                  onClick={() => setTtsEnabled(!ttsEnabled)}
-                  className="p-2 rounded-full hover:bg-muted/50 transition-colors"
-                  title={ttsEnabled ? "Disable voice" : "Enable voice"}
-                >
-                  {ttsEnabled ? (
-                    <Volume2 className="w-5 h-5" />
-                  ) : (
-                    <VolumeX className="w-5 h-5 text-muted-foreground" />
-                  )}
-                </button>
+
+                {/* Voice toggle + picker */}
+                <div className="relative" ref={voicePickerRef}>
+                  <button
+                    onClick={() => {
+                      if (!ttsEnabled) {
+                        setTtsEnabled(true);
+                      } else if (showVoicePicker) {
+                        setShowVoicePicker(false);
+                      } else {
+                        setShowVoicePicker(true);
+                      }
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setTtsEnabled(!ttsEnabled);
+                    }}
+                    className={cn(
+                      "p-2 rounded-full hover:bg-muted/50 transition-colors relative",
+                      ttsEnabled && "ring-1 ring-primary/50"
+                    )}
+                    title={ttsEnabled ? "Voice on — tap to pick voice, long press to disable" : "Enable voice"}
+                  >
+                    {ttsEnabled ? (
+                      <Volume2 className="w-5 h-5 text-primary" />
+                    ) : (
+                      <VolumeX className="w-5 h-5 text-muted-foreground" />
+                    )}
+                  </button>
+
+                  {/* Voice picker dropdown */}
+                  <AnimatePresence>
+                    {showVoicePicker && ttsEnabled && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                        className="absolute right-0 top-full mt-2 w-72 max-h-80 glass-card rounded-xl border border-border shadow-xl overflow-hidden z-50"
+                      >
+                        <div className="p-3 border-b border-border">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-semibold">Choose Voice</h4>
+                            <button
+                              onClick={() => setTtsEnabled(false)}
+                              className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                              Disable voice
+                            </button>
+                          </div>
+                          {selectedVoice && (
+                            <p className="text-xs text-muted-foreground mt-1 truncate">
+                              Current: {selectedVoice.name}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="overflow-y-auto max-h-60">
+                          {/* English voices */}
+                          {englishVoices.length > 0 && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-1 font-medium">
+                                English
+                              </p>
+                              {englishVoices.map((voice) => (
+                                <button
+                                  key={voice.name}
+                                  onClick={() => handleVoiceSelect(voice.name)}
+                                  className={cn(
+                                    "w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors flex items-center justify-between gap-2",
+                                    selectedVoiceName === voice.name && "bg-primary/10"
+                                  )}
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p
+                                      className={cn(
+                                        "truncate text-sm",
+                                        selectedVoiceName === voice.name
+                                          ? "font-semibold text-primary"
+                                          : "text-foreground"
+                                      )}
+                                    >
+                                      {voice.name.replace(/Microsoft |Google |Apple /, "")}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground truncate">
+                                      {voice.lang}
+                                      {!voice.localService && " · Cloud"}
+                                    </p>
+                                  </div>
+                                  {selectedVoiceName === voice.name && (
+                                    <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Other voices */}
+                          {otherVoices.length > 0 && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-1 font-medium">
+                                Other Languages
+                              </p>
+                              {otherVoices.map((voice) => (
+                                <button
+                                  key={voice.name}
+                                  onClick={() => handleVoiceSelect(voice.name)}
+                                  className={cn(
+                                    "w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors flex items-center justify-between gap-2",
+                                    selectedVoiceName === voice.name && "bg-primary/10"
+                                  )}
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p
+                                      className={cn(
+                                        "truncate text-sm",
+                                        selectedVoiceName === voice.name
+                                          ? "font-semibold text-primary"
+                                          : "text-foreground"
+                                      )}
+                                    >
+                                      {voice.name.replace(/Microsoft |Google |Apple /, "")}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground truncate">
+                                      {voice.lang}
+                                      {!voice.localService && " · Cloud"}
+                                    </p>
+                                  </div>
+                                  {selectedVoiceName === voice.name && (
+                                    <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {availableVoices.length === 0 && (
+                            <p className="text-sm text-muted-foreground text-center py-4 px-3">
+                              No voices available on this device.
+                            </p>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 {isSpeaking && (
                   <button
-                    onClick={stopSpeaking}
+                    onClick={cancelSpeech}
                     className="p-2 rounded-full hover:bg-muted/50 transition-colors"
                     title="Stop speaking"
                   >
@@ -317,7 +616,7 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
                   </button>
                 )}
                 <button
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="p-2 rounded-full hover:bg-muted/50 transition-colors"
                   title="Close chat"
                 >
@@ -331,16 +630,12 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
               {isLoadingHistory ? (
                 <div className="text-center py-8">
                   <Mascot state="thinking" size="lg" className="mx-auto mb-4" />
-                  <p className="text-muted-foreground">
-                    Loading your chat history...
-                  </p>
+                  <p className="text-muted-foreground">Loading your chat history...</p>
                 </div>
               ) : messages.length === 0 && !error ? (
                 <div className="text-center py-8 px-4">
                   <Mascot state="happy" size="lg" className="mx-auto mb-4" />
-                  <h3 className="font-semibold text-lg mb-2">
-                    Hi! I'm Soul Buddy
-                  </h3>
+                  <h3 className="font-semibold text-lg mb-2">Hi! I'm Soul Buddy</h3>
                   <p className="text-muted-foreground text-sm mb-4">
                     Your AI companion powered by Google Gemini
                   </p>
@@ -458,10 +753,7 @@ export function MascotChat({ isOpen, onClose }: MascotChatProps) {
             </div>
 
             {/* Input */}
-            <form
-              onSubmit={handleSubmit}
-              className="p-4 border-t border-border pb-safe"
-            >
+            <form onSubmit={handleSubmit} className="p-4 border-t border-border pb-safe">
               <div className="flex items-center gap-2 bg-input/80 rounded-full px-2">
                 <input
                   ref={inputRef}
