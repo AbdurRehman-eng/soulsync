@@ -114,17 +114,16 @@ export default function QuizPage({
     if (index === questions[currentQuestion].correct_answer) {
       setScore((s) => s + 1);
     }
+  };
 
-    // auto-advance after 2.5s
-    setTimeout(() => {
-      if (currentQuestion < questions.length - 1) {
-        setCurrentQuestion((q) => q + 1);
-        setSelectedAnswer(null);
-        setShowExplanation(false);
-      } else {
-        handleQuizComplete();
-      }
-    }, 2500);
+  const handleNext = () => {
+    if (currentQuestion < questions.length - 1) {
+      setCurrentQuestion((q) => q + 1);
+      setSelectedAnswer(null);
+      setShowExplanation(false);
+    } else {
+      handleQuizComplete();
+    }
   };
 
   const handleQuizComplete = async () => {
@@ -224,9 +223,9 @@ export default function QuizPage({
 
   if (phase === "intro") {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="min-h-[100dvh] bg-background flex flex-col">
         {/* Header */}
-        <div className="p-4 flex items-center gap-3 border-b border-border">
+        <div className="flex-shrink-0 p-4 flex items-center gap-3 border-b border-border">
           <button
             onClick={goBack}
             className="p-2 rounded-full hover:bg-muted/50 transition-colors"
@@ -236,7 +235,7 @@ export default function QuizPage({
           <h1 className="text-lg font-semibold flex-1 truncate">{card.title}</h1>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 text-center">
           {/* Animated trophy */}
           <motion.div
             className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-6"
@@ -324,9 +323,9 @@ export default function QuizPage({
         : "💪";
 
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="min-h-[100dvh] bg-background flex flex-col">
         {/* Header */}
-        <div className="p-4 flex items-center gap-3 border-b border-border">
+        <div className="flex-shrink-0 p-4 flex items-center gap-3 border-b border-border">
           <button
             onClick={goHome}
             className="p-2 rounded-full hover:bg-muted/50 transition-colors"
@@ -336,7 +335,7 @@ export default function QuizPage({
           <h1 className="text-lg font-semibold">Quiz Complete</h1>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 text-center">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -427,11 +426,13 @@ export default function QuizPage({
   // ─── PLAYING PHASE ──────────────────────────────────────────────────
 
   const question = questions[currentQuestion];
+  const hasAnswered = selectedAnswer !== null;
+  const isLastQuestion = currentQuestion === questions.length - 1;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="p-4 flex items-center gap-3 border-b border-border">
+    <div className="h-[100dvh] bg-background flex flex-col">
+      {/* Fixed header */}
+      <div className="flex-shrink-0 p-4 flex items-center gap-3 border-b border-border">
         <button
           onClick={() => {
             if (confirm("Leave the quiz? Your progress will be lost.")) {
@@ -442,19 +443,19 @@ export default function QuizPage({
         >
           <ArrowLeft className="w-5 h-5 text-muted-foreground" />
         </button>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h1 className="text-sm font-semibold truncate">{card.title}</h1>
           <p className="text-xs text-muted-foreground">
             Question {currentQuestion + 1} of {questions.length}
           </p>
         </div>
-        <div className="px-3 py-1 rounded-full bg-purple-500/20 text-purple-500 text-xs font-medium">
-          {score}/{currentQuestion + (selectedAnswer !== null ? 1 : 0)}
+        <div className="flex-shrink-0 px-3 py-1 rounded-full bg-purple-500/20 text-purple-500 text-xs font-medium">
+          {score}/{currentQuestion + (hasAnswered ? 1 : 0)}
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="flex gap-1 px-4 pt-4">
+      {/* Fixed progress bar */}
+      <div className="flex-shrink-0 flex gap-1 px-4 pt-3 pb-1">
         {questions.map((_, i) => (
           <div
             key={i}
@@ -469,87 +470,114 @@ export default function QuizPage({
         ))}
       </div>
 
-      {/* Question area */}
-      <div className="flex-1 flex flex-col p-4 sm:p-6 max-w-lg mx-auto w-full">
-        <motion.h2
-          key={currentQuestion}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="text-lg sm:text-xl font-semibold mb-6"
-        >
-          {question.question}
-        </motion.h2>
+      {/* Scrollable question area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-4 sm:p-6 max-w-lg mx-auto w-full space-y-4">
+          {/* Question */}
+          <motion.h2
+            key={currentQuestion}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="text-lg sm:text-xl font-semibold"
+          >
+            {question.question}
+          </motion.h2>
 
-        {/* Options */}
-        <div className="space-y-3 mb-4">
-          {question.options.map((option, index) => {
-            const isSelected = selectedAnswer === index;
-            const isCorrect = index === question.correct_answer;
-            const hasAnswered = selectedAnswer !== null;
+          {/* Options */}
+          <div className="space-y-3">
+            {question.options.map((option, index) => {
+              const isSelected = selectedAnswer === index;
+              const isCorrect = index === question.correct_answer;
 
-            let optionStyle = "glass-card hover:border-purple-500/50 active:scale-[0.98]";
-            if (hasAnswered) {
-              if (isCorrect) {
-                optionStyle = "bg-green-500/20 border border-green-500";
-              } else if (isSelected && !isCorrect) {
-                optionStyle = "bg-red-500/20 border border-red-500";
-              } else {
-                optionStyle = "glass-card opacity-50";
+              let optionStyle =
+                "glass-card hover:border-purple-500/50 active:scale-[0.98]";
+              if (hasAnswered) {
+                if (isCorrect) {
+                  optionStyle = "bg-green-500/20 border border-green-500";
+                } else if (isSelected && !isCorrect) {
+                  optionStyle = "bg-red-500/20 border border-red-500";
+                } else {
+                  optionStyle = "glass-card opacity-50";
+                }
               }
-            }
 
-            return (
-              <motion.button
-                key={index}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => handleAnswer(index)}
-                disabled={hasAnswered}
-                className={`w-full p-4 rounded-xl text-left transition-all text-sm sm:text-base flex items-center gap-3 ${optionStyle}`}
-              >
-                <span
-                  className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                    hasAnswered && isCorrect
-                      ? "bg-green-500 text-white"
-                      : hasAnswered && isSelected && !isCorrect
-                      ? "bg-red-500 text-white"
-                      : "bg-muted text-muted-foreground"
-                  }`}
+              return (
+                <motion.button
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  onClick={() => handleAnswer(index)}
+                  disabled={hasAnswered}
+                  className={`w-full p-3.5 sm:p-4 rounded-xl text-left transition-all text-sm sm:text-base flex items-center gap-3 ${optionStyle}`}
                 >
-                  {hasAnswered && isCorrect ? (
-                    <CheckCircle2 className="w-4 h-4" />
-                  ) : hasAnswered && isSelected && !isCorrect ? (
-                    <XCircle className="w-4 h-4" />
-                  ) : (
-                    String.fromCharCode(65 + index)
-                  )}
-                </span>
-                <span className="flex-1">{option}</span>
-              </motion.button>
-            );
-          })}
-        </div>
+                  <span
+                    className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      hasAnswered && isCorrect
+                        ? "bg-green-500 text-white"
+                        : hasAnswered && isSelected && !isCorrect
+                        ? "bg-red-500 text-white"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {hasAnswered && isCorrect ? (
+                      <CheckCircle2 className="w-4 h-4" />
+                    ) : hasAnswered && isSelected && !isCorrect ? (
+                      <XCircle className="w-4 h-4" />
+                    ) : (
+                      String.fromCharCode(65 + index)
+                    )}
+                  </span>
+                  <span className="flex-1">{option}</span>
+                </motion.button>
+              );
+            })}
+          </div>
 
-        {/* Explanation */}
-        <AnimatePresence>
-          {showExplanation && question.explanation && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="glass-card p-4 rounded-xl"
-            >
-              <p className="font-medium text-purple-500 mb-1 text-sm">
-                Explanation:
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {question.explanation}
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+          {/* Explanation */}
+          <AnimatePresence>
+            {showExplanation && question.explanation && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="glass-card p-4 rounded-xl"
+              >
+                <p className="font-medium text-purple-500 mb-1 text-sm">
+                  Explanation:
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {question.explanation}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Spacer so content isn't hidden behind the fixed bottom bar */}
+          {hasAnswered && <div className="h-20" />}
+        </div>
       </div>
+
+      {/* Fixed bottom Next button — only visible after answering */}
+      <AnimatePresence>
+        {hasAnswered && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className="flex-shrink-0 p-4 border-t border-border bg-background/80 backdrop-blur-lg"
+          >
+            <button
+              onClick={handleNext}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-base font-semibold shadow-lg active:scale-[0.98] transition-transform"
+            >
+              {isLastQuestion ? "See Results" : "Next Question"}
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
