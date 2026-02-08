@@ -101,63 +101,17 @@ export function Mascot({
 
       {/* Mascot Container */}
       <div className={cn("relative", sizeClasses[size])}>
-        {/* Energy/Plasma Effect Background */}
-        <motion.div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background:
-              "radial-gradient(circle, var(--primary) 0%, transparent 70%)",
-            filter: "blur(20px)",
-          }}
-          animate={
-            state === "power-up"
-              ? {
-                  scale: [1, 1.3, 1],
-                  opacity: [0.3, 0.6, 0.3],
-                }
-              : {
-                  scale: [1, 1.1, 1],
-                  opacity: [0.2, 0.3, 0.2],
-                }
-          }
-          transition={{
-            duration: state === "power-up" ? 0.5 : 3,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-
-        {/* Electric arc effects */}
-        {(state === "power-up" || state === "talking") && (
-          <>
-            {[...Array(3)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute inset-0"
-                style={{
-                  background: `conic-gradient(from ${i * 120}deg, transparent, var(--accent), transparent)`,
-                  borderRadius: "50%",
-                  filter: "blur(4px)",
-                }}
-                animate={{
-                  rotate: 360,
-                  opacity: [0.3, 0.6, 0.3],
-                }}
-                transition={{
-                  rotate: {
-                    duration: 2 + i * 0.5,
-                    repeat: Infinity,
-                    ease: "linear",
-                  },
-                  opacity: {
-                    duration: 1,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  },
-                }}
-              />
-            ))}
-          </>
+        {/* Energy glow — only rendered during active states */}
+        {(state === "power-up" || state === "happy") && (
+          <motion.div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "radial-gradient(circle, var(--primary) 0%, transparent 70%)",
+              filter: "blur(16px)",
+            }}
+            animate={{ opacity: [0.2, 0.45, 0.2] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          />
         )}
 
         {/* Mascot Image */}
@@ -179,32 +133,6 @@ export function Mascot({
             sizes="(max-width: 768px) 150px, 224px"
           />
         </motion.div>
-
-        {/* Particle effects */}
-        {state === "happy" && (
-          <div className="absolute inset-0 pointer-events-none">
-            {[...Array(8)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute w-1 h-1 rounded-full bg-accent"
-                style={{
-                  left: `${50 + Math.cos((i * Math.PI * 2) / 8) * 40}%`,
-                  top: `${50 + Math.sin((i * Math.PI * 2) / 8) * 40}%`,
-                }}
-                animate={{
-                  scale: [0, 1, 0],
-                  opacity: [0, 1, 0],
-                }}
-                transition={{
-                  duration: 1.5,
-                  repeat: Infinity,
-                  delay: i * 0.1,
-                  ease: "easeOut",
-                }}
-              />
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

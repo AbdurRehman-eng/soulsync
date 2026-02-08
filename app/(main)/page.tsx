@@ -1,17 +1,20 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMoodStore } from "@/stores/moodStore";
 import { useUserStore } from "@/stores/userStore";
-import { Mascot } from "@/components/mascot/Mascot";
-import { MoodSelector } from "@/components/mood/MoodSelector";
 import { MoodBadge } from "@/components/mood/MoodBadge";
-import { MoodCarousel } from "@/components/feed/MoodCarousel";
 import { CardFeed } from "@/components/feed/CardFeed";
 import { FeedSkeleton } from "@/components/feed/FeedSkeleton";
 import { getGreeting } from "@/lib/utils";
 import type { Card } from "@/types";
+
+// Lazy-load components not needed on first paint
+const Mascot = dynamic(() => import("@/components/mascot/Mascot").then(m => ({ default: m.Mascot })), { ssr: false });
+const MoodSelector = dynamic(() => import("@/components/mood/MoodSelector").then(m => ({ default: m.MoodSelector })), { ssr: false });
+const MoodCarousel = dynamic(() => import("@/components/feed/MoodCarousel").then(m => ({ default: m.MoodCarousel })), { ssr: false });
 
 export default function HomePage() {
   const { isSynced, currentMood } = useMoodStore();
@@ -160,7 +163,7 @@ export default function HomePage() {
 
             {/* Add top padding to account for fixed mood badge */}
             <div className="pt-16">
-              <CardFeed />
+              <CardFeed initialCards={moodCards} />
             </div>
           </motion.div>
         ) : (

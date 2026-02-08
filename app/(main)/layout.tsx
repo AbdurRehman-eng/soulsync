@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { Header } from "@/components/navigation/Header";
 import { BottomNav } from "@/components/navigation/BottomNav";
-import { MoodSelector } from "@/components/mood/MoodSelector";
-import { MascotChat } from "@/components/mascot/MascotChat";
-import { RewardPopup } from "@/components/gamification/RewardPopup";
 import { useMoodStore } from "@/stores/moodStore";
 import { useUserStore } from "@/stores/userStore";
 import { createClient } from "@/lib/supabase/client";
+
+// Lazy load modal/overlay components — they're never needed on initial paint
+const MoodSelector = dynamic(() => import("@/components/mood/MoodSelector").then(m => ({ default: m.MoodSelector })), { ssr: false });
+const MascotChat = dynamic(() => import("@/components/mascot/MascotChat").then(m => ({ default: m.MascotChat })), { ssr: false });
+const RewardPopup = dynamic(() => import("@/components/gamification/RewardPopup").then(m => ({ default: m.RewardPopup })), { ssr: false });
 
 export default function MainLayout({
   children,
@@ -20,43 +23,42 @@ export default function MainLayout({
   const { isSynced, checkSyncStatus, setAvailableMoods } = useMoodStore();
   const { setProfile, setLoading, updateStreak } = useUserStore();
 
-  // Check authentication and load user profile
+  // Check authentication and load user profile + moods in parallel
   useEffect(() => {
     const supabase = createClient();
 
     const loadUser = async () => {
       try {
-        // First, try to refresh the session to ensure it's valid
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (sessionError) {
-          console.error("Session error:", sessionError);
+        if (sessionError || !session?.user) {
           setProfile(null);
           setLoading(false);
           return;
         }
 
-        if (!session?.user) {
+        // Load profile and moods in parallel
+        const [profileResult, moodsResult] = await Promise.all([
+          supabase.from("profiles").select("*").eq("id", session.user.id).single(),
+          fetch("/api/mood"),
+        ]);
+
+        if (profileResult.data) {
+          setProfile(profileResult.data);
+          // Check daily login after profile is set (fire-and-forget)
+          fetch("/api/daily-login")
+            .then((r) => r.ok ? r.json() : null)
+            .then((data) => { if (data?.currentStreak !== undefined) updateStreak(data.currentStreak); })
+            .catch(() => {});
+        } else {
           setProfile(null);
-          setLoading(false);
-          return;
         }
 
-        // If we have a valid session, load the profile
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", session.user.id)
-          .single();
-
-        if (profileError) {
-          console.error("Profile error:", profileError);
-          setProfile(null);
-        } else if (profile) {
-          setProfile(profile);
+        if (moodsResult.ok) {
+          const data = await moodsResult.json();
+          if (data.moods?.length > 0) setAvailableMoods(data.moods);
         }
       } catch (error) {
-        console.error("Load user error:", error);
         setProfile(null);
       } finally {
         setLoading(false);
@@ -66,67 +68,21 @@ export default function MainLayout({
     loadUser();
 
     // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", session.user.id)
           .single();
-
-        if (profile) {
-          setProfile(profile);
-        }
+        if (profile) setProfile(profile);
       } else if (event === "SIGNED_OUT") {
         setProfile(null);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [setProfile, setLoading]);
-
-  // Check daily login and update streak
-  useEffect(() => {
-    const checkDailyLogin = async () => {
-      try {
-        const response = await fetch("/api/daily-login");
-        if (response.ok) {
-          const data = await response.json();
-          if (data.currentStreak !== undefined) {
-            updateStreak(data.currentStreak);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to check daily login:", error);
-      }
-    };
-
-    const { profile } = useUserStore.getState();
-    if (profile) {
-      checkDailyLogin();
-    }
-  }, [updateStreak]);
-
-  // Load available moods from database
-  useEffect(() => {
-    const loadMoods = async () => {
-      try {
-        const response = await fetch("/api/mood");
-        if (response.ok) {
-          const data = await response.json();
-          if (data.moods && data.moods.length > 0) {
-            setAvailableMoods(data.moods);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load moods:", error);
-      }
-    };
-
-    loadMoods();
-  }, [setAvailableMoods]);
+  }, [setProfile, setLoading, setAvailableMoods, updateStreak]);
 
   // Check mood sync status on mount
   useEffect(() => {

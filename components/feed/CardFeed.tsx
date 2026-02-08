@@ -29,15 +29,14 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
 
   const fetchLikedCards = async () => {
     try {
-      const response = await fetch("/api/interactions?type=like&limit=500");
+      const response = await fetch("/api/interactions?type=like&limit=50");
       if (response.ok) {
         const data = await response.json();
         const likedCardIds = new Set<string>(data.cards?.map((c: Card) => c.id) ?? []);
-        console.log(`[CardFeed] Loaded ${likedCardIds.size} liked cards`);
         setLikedCards(likedCardIds);
       }
-    } catch (error) {
-      console.error("[CardFeed] Failed to fetch liked cards:", error);
+    } catch {
+      // Non-critical — silently fail
     }
   };
 
@@ -95,13 +94,9 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
       const response = await fetch(url.toString());
       if (response.ok) {
         const data = await response.json();
-        console.log(`[CardFeed] Received ${data.cards?.length || 0} cards from API`, data.cards);
         setCards(data.cards);
-      } else {
-        console.error("[CardFeed] API returned error:", response.status, response.statusText);
       }
-    } catch (error) {
-      console.error("[CardFeed] Failed to fetch cards:", error);
+    } catch {
     } finally {
       setLoading(false);
     }

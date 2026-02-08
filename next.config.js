@@ -13,6 +13,10 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  compress: true,
+  experimental: {
+    optimizePackageImports: ["framer-motion", "lucide-react", "@supabase/supabase-js"],
+  },
   images: {
     remotePatterns: [
       {
@@ -24,6 +28,7 @@ const nextConfig = {
         hostname: "*.supabase.in",
       },
     ],
+    formats: ["image/avif", "image/webp"],
   },
 };
 
