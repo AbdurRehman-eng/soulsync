@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useMoodStore } from "@/stores/moodStore";
 import { useUserStore } from "@/stores/userStore";
@@ -28,13 +28,35 @@ export default function HomePage() {
   );
   const [moodCards, setMoodCards] = useState<Card[]>([]);
   const [loadingCards, setLoadingCards] = useState(false);
+  // Track whether MoodSelector already pre-fetched cards so we don't double-fetch
+  const feedPreloadedRef = useRef(false);
 
   const greeting = getGreeting();
   const userName = profile?.display_name || profile?.username;
 
-  // Fetch cards from API when mood is synced
+  // Listen for pre-fetched feed cards from MoodSelector
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const cards = (e as CustomEvent).detail?.cards;
+      if (Array.isArray(cards)) {
+        feedPreloadedRef.current = true;
+        setMoodCards(cards);
+        setLoadingCards(false);
+      }
+    };
+    window.addEventListener("soul-sync-feed-ready", handler);
+    return () => window.removeEventListener("soul-sync-feed-ready", handler);
+  }, []);
+
+  // Fetch cards from API when mood is synced (only if not already pre-loaded)
   const fetchMoodCards = useCallback(async () => {
     if (!isSynced) return;
+
+    // Skip if MoodSelector already delivered the cards
+    if (feedPreloadedRef.current) {
+      feedPreloadedRef.current = false;
+      return;
+    }
     
     setLoadingCards(true);
     try {
