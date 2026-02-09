@@ -1,12 +1,20 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import { Toaster } from "react-hot-toast";
+import dynamic from "next/dynamic";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import "./globals.css";
+
+// Lazy-load Toaster - not needed for first paint
+const Toaster = dynamic(
+  () => import("react-hot-toast").then((m) => ({ default: m.Toaster })),
+  { ssr: false }
+);
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  display: "swap",
+  preload: true,
 });
 
 export const metadata: Metadata = {
@@ -45,6 +53,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* DNS prefetch & preconnect to Supabase for faster API calls */}
+        <link rel="dns-prefetch" href="https://kxgelcwkfpyjytwhocst.supabase.co" />
+        <link rel="preconnect" href="https://kxgelcwkfpyjytwhocst.supabase.co" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" crossOrigin="anonymous" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />

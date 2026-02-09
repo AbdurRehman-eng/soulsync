@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Header } from "@/components/navigation/Header";
 import { BottomNav } from "@/components/navigation/BottomNav";
@@ -20,8 +20,19 @@ export default function MainLayout({
 }) {
   const [showMoodSelector, setShowMoodSelector] = useState(false);
   const [showChat, setShowChat] = useState(false);
-  const { isSynced, checkSyncStatus, setAvailableMoods } = useMoodStore();
+  const { checkSyncStatus, setAvailableMoods } = useMoodStore();
   const { setProfile, setLoading, updateStreak } = useUserStore();
+
+  // Listen for navigation events from BottomNav (single modal instance pattern)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.type === "mood-selector") setShowMoodSelector(true);
+      else if (detail?.type === "mascot-chat") setShowChat(true);
+    };
+    window.addEventListener("soul-sync-nav", handler);
+    return () => window.removeEventListener("soul-sync-nav", handler);
+  }, []);
 
   // Check authentication and load user profile + moods in parallel
   useEffect(() => {
@@ -94,14 +105,8 @@ export default function MainLayout({
     }
   }, [checkSyncStatus]);
 
-  // Handle Soul Sync button click
-  const handleSoulSyncClick = () => {
-    if (!isSynced) {
-      setShowMoodSelector(true);
-    } else {
-      setShowChat(true);
-    }
-  };
+  const closeMoodSelector = useCallback(() => setShowMoodSelector(false), []);
+  const closeChat = useCallback(() => setShowChat(false), []);
 
   return (
     <div className="app-container h-screen flex flex-col overflow-hidden">
@@ -111,14 +116,14 @@ export default function MainLayout({
 
       <BottomNav />
 
-      {/* Mood Selector Modal */}
-      <MoodSelector
-        isOpen={showMoodSelector}
-        onClose={() => setShowMoodSelector(false)}
-      />
+      {/* Single modal instances for the entire app */}
+      {showMoodSelector && (
+        <MoodSelector isOpen={showMoodSelector} onClose={closeMoodSelector} />
+      )}
 
-      {/* AI Chat Modal */}
-      <MascotChat isOpen={showChat} onClose={() => setShowChat(false)} />
+      {showChat && (
+        <MascotChat isOpen={showChat} onClose={closeChat} />
+      )}
 
       {/* Reward Popup */}
       <RewardPopup />

@@ -130,16 +130,27 @@ html[data-theme="dark"] textarea {
 }
 
 @layer components {
-  /* Glassmorphism Card */
+  /* Glassmorphism Card — reduced blur on mobile for GPU performance */
   .glass-card {
     @apply relative overflow-hidden rounded-2xl;
     background: var(--card);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      0 4px 16px rgba(0, 0, 0, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  /* Use heavier blur only on capable devices with larger screens */
+  @media (min-width: 640px) {
+    .glass-card {
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
   }
 
   .glass-card::before {
@@ -152,7 +163,7 @@ html[data-theme="dark"] textarea {
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(255, 255, 255, 0.2),
+      rgba(255, 255, 255, 0.15),
       transparent
     );
   }
@@ -261,6 +272,11 @@ html[data-theme="dark"] textarea {
     animation: shimmer 2s infinite;
   }
 
+  /* Skeleton card pulse (replaces framer-motion opacity animation) */
+  .skeleton-pulse {
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+  }
+
   /* Points Badge */
   .points-badge {
     @apply inline-flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium;
@@ -312,6 +328,9 @@ html[data-theme="dark"] textarea {
     padding: clamp(0.5rem, 2vw, 1rem);
     position: relative;
     box-sizing: border-box;
+    /* Skip rendering for off-screen items */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 100vh;
   }
 
   /* Update Feed Card for vertical layout */
@@ -326,6 +345,9 @@ html[data-theme="dark"] textarea {
     overflow: hidden !important;
     -ms-overflow-style: none;
     scrollbar-width: none;
+    /* GPU compositing hint for smoother scroll-snap */
+    will-change: transform;
+    contain: layout style paint;
   }
 
   /* Hide scrollbar on cards and all child elements */
@@ -430,6 +452,26 @@ html[data-theme="dark"] textarea {
   }
 }
 
+/* CSS-only floating hearts for LikeButton (replaces framer-motion) */
+@keyframes float-heart-css {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-40px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-80px) scale(1.2);
+  }
+}
+
+.floating-heart-css {
+  animation: float-heart-css 1s ease-out forwards;
+}
+
 @keyframes shimmer {
   0% {
     transform: translateX(-100%);
@@ -437,6 +479,11 @@ html[data-theme="dark"] textarea {
   100% {
     transform: translateX(100%);
   }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 @keyframes scale-in {
@@ -447,6 +494,17 @@ html[data-theme="dark"] textarea {
   100% {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -482,5 +540,10 @@ html[data-theme="dark"] textarea {
   /* Touch feedback */
   .touch-feedback {
     @apply active:scale-95 transition-transform duration-100;
+  }
+
+  /* CSS-only fade-in animation (replaces framer-motion initial/animate) */
+  .animate-fade-in {
+    animation: fade-in-up 0.3s ease-out both;
   }
 }

@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { FeedCard } from "@/components/cards/FeedCard";
 import { FeedSkeleton } from "./FeedSkeleton";
 import { VerticalProgressDots } from "./VerticalProgressDots";
 import { useMoodStore } from "@/stores/moodStore";
 import type { Card } from "@/types";
+
+// How many cards above/below the current one to keep rendered
+const RENDER_WINDOW = 2;
 
 interface CardFeedProps {
   initialCards?: Card[];
@@ -18,6 +21,7 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
   const [likedCards, setLikedCards] = useState<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const viewedCardsRef = useRef<Set<string>>(new Set());
 
   // Get current mood from store
   const { currentMood } = useMoodStore();
@@ -58,9 +62,10 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
             const index = parseInt(entry.target.getAttribute("data-index") || "0");
             setCurrentIndex(index);
 
-            // Auto-track view
+            // Auto-track view (deduplicate - only track once per session)
             const cardId = entry.target.getAttribute("data-card-id");
-            if (cardId) {
+            if (cardId && !viewedCardsRef.current.has(cardId)) {
+              viewedCardsRef.current.add(cardId);
               handleView(cardId);
             }
           }
@@ -136,6 +141,13 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
     }).catch(console.error);
   }, []);
 
+  // Only render cards within the visible window (±RENDER_WINDOW of currentIndex)
+  const visibleRange = useMemo(() => {
+    const start = Math.max(0, currentIndex - RENDER_WINDOW);
+    const end = Math.min(cards.length - 1, currentIndex + RENDER_WINDOW);
+    return { start, end };
+  }, [currentIndex, cards.length]);
+
   if (loading) {
     return <FeedSkeleton />;
   }
@@ -162,14 +174,19 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
             data-card-id={card.id}
             className="feed-snap-item"
           >
-            <FeedCard
-              card={card}
-              index={index}
-              isLiked={likedCards.has(card.id)}
-              onLike={() => handleLike(card.id)}
-              onShare={() => handleShare(card.id)}
-              onView={() => handleView(card.id)}
-            />
+            {/* Only render FeedCard for items within the visible window */}
+            {index >= visibleRange.start && index <= visibleRange.end ? (
+              <FeedCard
+                card={card}
+                index={index}
+                isLiked={likedCards.has(card.id)}
+                onLike={() => handleLike(card.id)}
+                onShare={() => handleShare(card.id)}
+                onView={() => handleView(card.id)}
+              />
+            ) : (
+              <div className="feed-card" />
+            )}
           </div>
         ))}
       </div>

@@ -2,24 +2,26 @@
 
 import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence } from "framer-motion";
 import { useMoodStore } from "@/stores/moodStore";
 import { useUserStore } from "@/stores/userStore";
 import { MoodBadge } from "@/components/mood/MoodBadge";
-import { CardFeed } from "@/components/feed/CardFeed";
 import { FeedSkeleton } from "@/components/feed/FeedSkeleton";
 import { getGreeting } from "@/lib/utils";
 import type { Card } from "@/types";
 
-// Lazy-load components not needed on first paint
+// Lazy-load heavy components not needed on first paint
 const Mascot = dynamic(() => import("@/components/mascot/Mascot").then(m => ({ default: m.Mascot })), { ssr: false });
-const MoodSelector = dynamic(() => import("@/components/mood/MoodSelector").then(m => ({ default: m.MoodSelector })), { ssr: false });
 const MoodCarousel = dynamic(() => import("@/components/feed/MoodCarousel").then(m => ({ default: m.MoodCarousel })), { ssr: false });
+const CardFeed = dynamic(() => import("@/components/feed/CardFeed").then(m => ({ default: m.CardFeed })), { ssr: false });
+
+// Use the layout's single MoodSelector instance via custom event
+function openMoodSelector() {
+  window.dispatchEvent(new CustomEvent("soul-sync-nav", { detail: { type: "mood-selector" } }));
+}
 
 export default function HomePage() {
   const { isSynced, currentMood } = useMoodStore();
   const { profile } = useUserStore();
-  const [showMoodSelector, setShowMoodSelector] = useState(false);
   const [showFeed, setShowFeed] = useState(false);
   const [mascotState, setMascotState] = useState<"idle" | "power-up" | "happy">(
     "idle"
@@ -44,10 +46,7 @@ export default function HomePage() {
       const response = await fetch(url.toString());
       if (response.ok) {
         const data = await response.json();
-        console.log(`[HomePage] Received ${data.cards?.length || 0} cards from API`);
         setMoodCards(data.cards || []);
-      } else {
-        console.error("[HomePage] API returned error:", response.status);
       }
     } catch (error) {
       console.error("[HomePage] Failed to fetch cards:", error);
@@ -79,135 +78,96 @@ export default function HomePage() {
     }
   }, [isSynced, currentMood]);
 
-  const handleMoodSelected = () => {
-    setMascotState("happy");
-  };
+  if (!isSynced) {
+    // Unsynced state - show mascot welcome
+    return (
+      <div className="flex-1 flex flex-col overflow-x-hidden">
+        <div className="flex-1 flex flex-col items-center justify-center px-3 text-center overflow-hidden animate-fade-in">
+          {/* Mascot and speech bubble row */}
+          <div className="relative flex items-start justify-start w-full max-w-xs sm:max-w-sm mx-auto mb-3 sm:mb-4">
+            <Mascot
+              state={mascotState}
+              size="lg"
+              showSpeechBubble={true}
+              speechText={
+                userName
+                  ? `${greeting}, ${userName}! How are you feeling today?`
+                  : `${greeting}! Welcome to Soul Sync. How are you feeling today?`
+              }
+            />
+          </div>
 
-  const handleSwipeToFeed = () => {
-    setShowFeed(true);
-  };
+          <div className="w-full max-w-xs sm:max-w-sm px-2 animate-fade-in" style={{ animationDelay: '300ms' }}>
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold mb-1">Sync Your Soul</h1>
+            <p className="text-[11px] sm:text-xs md:text-sm text-muted-foreground mb-3 sm:mb-4">
+              Tell us how you&apos;re feeling to get personalized content
+            </p>
 
+            <button
+              onClick={openMoodSelector}
+              className="px-5 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-4 rounded-full bg-gradient-to-r from-primary to-accent text-white font-semibold text-sm sm:text-base md:text-lg shadow-lg shadow-primary/25 active:scale-95 transition-transform animate-pulse-glow"
+            >
+              Select Your Mood
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (showFeed) {
+    // Full feed view
+    return (
+      <div className="flex-1 flex flex-col overflow-x-hidden">
+        <div className="flex-1 flex flex-col animate-fade-in">
+          {/* Mood badge - fixed so it doesn't scroll with cards */}
+          <div className="fixed top-28 left-0 right-0 z-30 px-2 sm:px-4 flex items-center justify-between bg-gradient-to-b from-background to-transparent pb-2 sm:pb-4">
+            <MoodBadge onClick={openMoodSelector} />
+            <button
+              onClick={() => setShowFeed(false)}
+              className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Back
+            </button>
+          </div>
+
+          {/* Add top padding to account for fixed mood badge */}
+          <div className="pt-16">
+            <CardFeed initialCards={moodCards} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Synced state - show mood carousel
   return (
     <div className="flex-1 flex flex-col overflow-x-hidden">
-      <AnimatePresence mode="wait">
-        {!isSynced ? (
-          // Unsynced state - show mascot welcome
-          <motion.div
-            key="welcome"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col items-center justify-center px-3 text-center overflow-hidden"
-          >
-            {/* Mascot and speech bubble row - mascot on left, bubble on right */}
-            <div className="relative flex items-start justify-start w-full max-w-xs sm:max-w-sm mx-auto mb-3 sm:mb-4">
-              <Mascot
-                state={mascotState}
-                size="lg"
-                showSpeechBubble={true}
-                speechText={
-                  userName
-                    ? `${greeting}, ${userName}! How are you feeling today?`
-                    : `${greeting}! Welcome to Soul Sync. How are you feeling today?`
-                }
-              />
-            </div>
+      <div className="flex-1 flex flex-col overflow-hidden animate-fade-in">
+        {/* Header with mood badge */}
+        <div className="px-2 sm:px-4 mb-2 sm:mb-4 flex items-center gap-2 sm:gap-3">
+          <MoodBadge onClick={openMoodSelector} />
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Content curated for your mood
+          </p>
+        </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="w-full max-w-xs sm:max-w-sm px-2"
-            >
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold mb-1">Sync Your Soul</h1>
-              <p className="text-[11px] sm:text-xs md:text-sm text-muted-foreground mb-3 sm:mb-4">
-                Tell us how you're feeling to get personalized content
-              </p>
-
-              <motion.button
-                onClick={() => setShowMoodSelector(true)}
-                className="px-5 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-4 rounded-full bg-gradient-to-r from-primary to-accent text-white font-semibold text-sm sm:text-base md:text-lg shadow-lg shadow-primary/25"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                animate={{
-                  boxShadow: [
-                    "0 0 20px rgba(124, 58, 237, 0.3)",
-                    "0 0 40px rgba(124, 58, 237, 0.5)",
-                    "0 0 20px rgba(124, 58, 237, 0.3)",
-                  ],
-                }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                Select Your Mood
-              </motion.button>
-            </motion.div>
-          </motion.div>
-        ) : showFeed ? (
-          // Full feed view
-          <motion.div
-            key="feed"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex-1 flex flex-col"
-          >
-            {/* Mood badge - fixed so it doesn't scroll with cards */}
-            <div className="fixed top-28 left-0 right-0 z-30 px-2 sm:px-4 flex items-center justify-between bg-gradient-to-b from-background to-transparent pb-2 sm:pb-4">
-              <MoodBadge onClick={() => setShowMoodSelector(true)} />
-              <button
-                onClick={() => setShowFeed(false)}
-                className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Back
-              </button>
-            </div>
-
-            {/* Add top padding to account for fixed mood badge */}
-            <div className="pt-16">
-              <CardFeed initialCards={moodCards} />
-            </div>
-          </motion.div>
-        ) : (
-          // Synced state - show mood carousel
-          <motion.div
-            key="mood-cards"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col overflow-hidden"
-          >
-            {/* Header with mood badge */}
-            <div className="px-2 sm:px-4 mb-2 sm:mb-4 flex items-center gap-2 sm:gap-3">
-              <MoodBadge onClick={() => setShowMoodSelector(true)} />
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Content curated for your mood
+        {/* Mood-specific cards carousel */}
+        <div className="flex-1 flex flex-col justify-center overflow-hidden">
+          {loadingCards ? (
+            <FeedSkeleton />
+          ) : moodCards.length > 0 ? (
+            <MoodCarousel cards={moodCards} />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
+              <p className="text-lg font-semibold mb-2">No cards available</p>
+              <p className="text-muted-foreground text-sm">
+                Check back later for new content
               </p>
             </div>
-
-            {/* Mood-specific cards carousel */}
-            <div className="flex-1 flex flex-col justify-center overflow-hidden">
-              {loadingCards ? (
-                <FeedSkeleton />
-              ) : moodCards.length > 0 ? (
-                <MoodCarousel cards={moodCards} />
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
-                  <p className="text-lg font-semibold mb-2">No cards available</p>
-                  <p className="text-muted-foreground text-sm">
-                    Check back later for new content
-                  </p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Mood Selector Modal */}
-      <MoodSelector
-        isOpen={showMoodSelector}
-        onClose={() => setShowMoodSelector(false)}
-        onMoodSelected={handleMoodSelected}
-      />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,9 +1,12 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { FeedCard } from "@/components/cards/FeedCard";
 import { VerticalProgressDots } from "./VerticalProgressDots";
 import type { Card } from "@/types";
+
+// How many cards above/below the current one to keep rendered
+const RENDER_WINDOW = 2;
 
 interface MoodCarouselProps {
   cards: Card[];
@@ -15,6 +18,7 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
   const [likedCards, setLikedCards] = useState<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const viewedCardsRef = useRef<Set<string>>(new Set());
 
   // Fetch liked cards on mount to show correct like state
   useEffect(() => {
@@ -23,15 +27,15 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
 
   const fetchLikedCards = async () => {
     try {
-      const response = await fetch("/api/interactions?type=like&limit=500");
+      // Reduced limit from 500 to 50 — user won't have 500 liked cards visible
+      const response = await fetch("/api/interactions?type=like&limit=50");
       if (response.ok) {
         const data = await response.json();
         const likedCardIds = new Set<string>(data.cards?.map((c: Card) => c.id) ?? []);
-        console.log(`[MoodCarousel] Loaded ${likedCardIds.size} liked cards`);
         setLikedCards(likedCardIds);
       }
-    } catch (error) {
-      console.error("[MoodCarousel] Failed to fetch liked cards:", error);
+    } catch {
+      // Non-critical — silently fail
     }
   };
 
@@ -45,6 +49,13 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
           if (entry.isIntersecting) {
             const index = parseInt(entry.target.getAttribute("data-index") || "0");
             setCurrentIndex(index);
+
+            // Track view only once per card per session
+            const cardId = entry.target.getAttribute("data-card-id");
+            if (cardId && !viewedCardsRef.current.has(cardId)) {
+              viewedCardsRef.current.add(cardId);
+              handleView(cardId);
+            }
           }
         });
       },
@@ -85,7 +96,6 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
   }, []);
 
   const handleShare = useCallback((cardId: string) => {
-    // API call to track share
     fetch("/api/interactions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -101,6 +111,13 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
     }).catch(console.error);
   }, []);
 
+  // Only render cards within the visible window
+  const visibleRange = useMemo(() => {
+    const start = Math.max(0, currentIndex - RENDER_WINDOW);
+    const end = Math.min(cards.length - 1, currentIndex + RENDER_WINDOW);
+    return { start, end };
+  }, [currentIndex, cards.length]);
+
   return (
     <div className="relative flex-1 flex flex-col">
       {/* Vertical scroll container */}
@@ -112,14 +129,18 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
             data-card-id={card.id}
             className="feed-snap-item"
           >
-            <FeedCard
-              card={card}
-              index={index}
-              isLiked={likedCards.has(card.id)}
-              onLike={() => handleLike(card.id)}
-              onShare={() => handleShare(card.id)}
-              onView={() => handleView(card.id)}
-            />
+            {index >= visibleRange.start && index <= visibleRange.end ? (
+              <FeedCard
+                card={card}
+                index={index}
+                isLiked={likedCards.has(card.id)}
+                onLike={() => handleLike(card.id)}
+                onShare={() => handleShare(card.id)}
+                onView={() => handleView(card.id)}
+              />
+            ) : (
+              <div className="feed-card" />
+            )}
           </div>
         ))}
       </div>

@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { memo } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { Home, ListTodo, Trophy, MoreHorizontal, Compass } from "lucide-react";
+import { Home, Trophy, MoreHorizontal, Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SoulSyncButton } from "./SoulSyncButton";
-import { MoodSelector } from "@/components/mood/MoodSelector";
-import { MascotChat } from "@/components/mascot/MascotChat";
 import { useMoodStore } from "@/stores/moodStore";
 
 const navItems = [
@@ -18,64 +15,53 @@ const navItems = [
   { href: "/more", icon: MoreHorizontal, label: "More" },
 ];
 
-export function BottomNav() {
+// Custom event to communicate with the layout's MoodSelector/MascotChat
+// This avoids rendering duplicate modal instances
+function dispatchNavEvent(type: "mood-selector" | "mascot-chat") {
+  window.dispatchEvent(new CustomEvent("soul-sync-nav", { detail: { type } }));
+}
+
+export const BottomNav = memo(function BottomNav() {
   const pathname = usePathname();
-  const [showMoodSelector, setShowMoodSelector] = useState(false);
-  const [showChat, setShowChat] = useState(false);
   const { isSynced } = useMoodStore();
 
   const handleSoulSyncClick = () => {
-    if (!isSynced) {
-      setShowMoodSelector(true);
-    } else {
-      setShowChat(true);
-    }
+    dispatchNavEvent(isSynced ? "mascot-chat" : "mood-selector");
   };
 
   return (
-    <>
-      <nav className="bottom-nav pb-safe">
-        <div className="bottom-nav-inner">
-          {/* Left nav items */}
-          {navItems.slice(0, 2).map((item) => (
-            <NavItem
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={pathname === item.href}
-            />
-          ))}
+    <nav className="bottom-nav pb-safe">
+      <div className="bottom-nav-inner">
+        {/* Left nav items */}
+        {navItems.slice(0, 2).map((item) => (
+          <NavItem
+            key={item.href}
+            href={item.href}
+            icon={item.icon}
+            label={item.label}
+            isActive={pathname === item.href}
+          />
+        ))}
 
-          {/* Center Soul Sync Button */}
-          <div className="flex items-center">
-            <SoulSyncButton onClick={handleSoulSyncClick} />
-          </div>
-
-          {/* Right nav items */}
-          {navItems.slice(2).map((item) => (
-            <NavItem
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={pathname === item.href}
-            />
-          ))}
+        {/* Center Soul Sync Button */}
+        <div className="flex items-center">
+          <SoulSyncButton onClick={handleSoulSyncClick} />
         </div>
-      </nav>
 
-      {/* Mood Selector Modal */}
-      <MoodSelector
-        isOpen={showMoodSelector}
-        onClose={() => setShowMoodSelector(false)}
-      />
-
-      {/* AI Chat Modal */}
-      <MascotChat isOpen={showChat} onClose={() => setShowChat(false)} />
-    </>
+        {/* Right nav items */}
+        {navItems.slice(2).map((item) => (
+          <NavItem
+            key={item.href}
+            href={item.href}
+            icon={item.icon}
+            label={item.label}
+            isActive={pathname === item.href}
+          />
+        ))}
+      </div>
+    </nav>
   );
-}
+});
 
 interface NavItemProps {
   href: string;
@@ -84,24 +70,16 @@ interface NavItemProps {
   isActive: boolean;
 }
 
-function NavItem({ href, icon: Icon, label, isActive }: NavItemProps) {
+const NavItem = memo(function NavItem({ href, icon: Icon, label, isActive }: NavItemProps) {
   return (
-    <Link href={href} className={cn("nav-item touch-feedback", isActive && "active")}>
-      <motion.div
-        initial={false}
-        animate={isActive ? { scale: 1.1 } : { scale: 1 }}
-        transition={{ type: "spring", stiffness: 400, damping: 17 }}
-      >
+    <Link href={href} className={cn("nav-item touch-feedback", isActive && "active")} prefetch={false}>
+      <div className={cn("transition-transform duration-200", isActive && "scale-110")}>
         <Icon className="w-6 h-6" />
-      </motion.div>
+      </div>
       <span className="text-xs font-medium">{label}</span>
       {isActive && (
-        <motion.div
-          layoutId="nav-indicator"
-          className="absolute -bottom-1 w-1 h-1 rounded-full bg-[var(--active-icon-color)]"
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
-        />
+        <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-[var(--active-icon-color)]" />
       )}
     </Link>
   );
-}
+});

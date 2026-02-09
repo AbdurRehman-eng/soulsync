@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { memo, useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import { Zap, Flame, User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 
-export function Header() {
+export const Header = memo(function Header() {
   const { profile, isAuthenticated, loading, logout } = useUserStore();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -15,6 +14,7 @@ export function Header() {
 
   // Close dropdown when clicking outside
   useEffect(() => {
+    if (!isDropdownOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
@@ -23,7 +23,7 @@ export function Header() {
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [isDropdownOpen]);
 
   const handleLogout = async () => {
     setIsDropdownOpen(false);
@@ -38,7 +38,7 @@ export function Header() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 pt-safe">
-      <div className="glass-card mx-2 sm:mx-4 mt-2 sm:mt-4 px-3 sm:px-4 py-2 sm:py-3 overflow-visible backdrop-blur-md bg-card/90">
+      <div className="glass-card mx-2 sm:mx-4 mt-2 sm:mt-4 px-3 sm:px-4 py-2 sm:py-3 overflow-visible">
         <div className="flex items-center justify-between">
           {isAuthenticated && profile ? (
             <>
@@ -72,66 +72,56 @@ export function Header() {
 
                 {/* Spark Button with Dropdown */}
                 <div className="relative" ref={dropdownRef}>
-                  <motion.button
+                  <button
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="px-4 sm:px-5 py-1.5 sm:py-2 rounded-full bg-[#fbbf24] text-black font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                    className="px-4 sm:px-5 py-1.5 sm:py-2 rounded-full bg-[#fbbf24] text-black font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1 active:scale-95 transition-transform"
                     style={{ boxShadow: '0 2px 8px rgba(251, 191, 36, 0.4)' }}
                   >
                     Spark
-                    <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                  </motion.button>
+                    <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
 
-                  {/* Dropdown Menu */}
-                  <AnimatePresence>
-                    {isDropdownOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute right-0 mt-2 w-40 sm:w-48 glass-card rounded-xl overflow-hidden z-50"
-                      >
-                        {/* Admin option - only for admins */}
-                        {profile.is_admin && (
-                          <Link
-                            href="/admin"
-                            onClick={() => setIsDropdownOpen(false)}
-                            className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
-                          >
-                            <Settings className="w-4 h-4 text-purple-500" />
-                            <span>Admin</span>
-                          </Link>
-                        )}
-
-                        {/* Profile option */}
+                  {/* Dropdown Menu — CSS transition instead of AnimatePresence */}
+                  {isDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-40 sm:w-48 glass-card rounded-xl overflow-hidden z-50 animate-scale-in">
+                      {/* Admin option - only for admins */}
+                      {profile.is_admin && (
                         <Link
-                          href="/profile"
+                          href="/admin"
                           onClick={() => setIsDropdownOpen(false)}
                           className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
                         >
-                          <User className="w-4 h-4 text-primary" />
-                          <span>Profile</span>
+                          <Settings className="w-4 h-4 text-purple-500" />
+                          <span>Admin</span>
                         </Link>
+                      )}
 
-                        {/* Logout option */}
-                        <button
-                          onClick={handleLogout}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors text-red-500"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          <span>Logout</span>
-                        </button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                      {/* Profile option */}
+                      <Link
+                        href="/profile"
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
+                      >
+                        <User className="w-4 h-4 text-primary" />
+                        <span>Profile</span>
+                      </Link>
+
+                      {/* Logout option */}
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors text-red-500"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
           ) : loading ? (
             <>
-              {/* Loading skeleton - only show when loading and no profile */}
+              {/* Loading skeleton */}
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-6 h-6 sm:w-7 sm:h-7 bg-muted/30 rounded-full animate-pulse" />
                 <div className="flex flex-col gap-1">
@@ -148,21 +138,11 @@ export function Header() {
               {/* Logged out state */}
               <div className="flex-1" />
               <div className="flex items-center gap-2">
-                <Link href="/login">
-                  <motion.button
-                    className="px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-full hover:bg-muted/50 transition-colors"
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    Log in
-                  </motion.button>
+                <Link href="/login" className="px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-full hover:bg-muted/50 transition-colors active:scale-95">
+                  Log in
                 </Link>
-                <Link href="/signup">
-                  <motion.button
-                    className="px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold rounded-full bg-[#fbbf24] text-black hover:opacity-90 transition-opacity"
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    Sign up
-                  </motion.button>
+                <Link href="/signup" className="px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold rounded-full bg-[#fbbf24] text-black hover:opacity-90 transition-opacity active:scale-95">
+                  Sign up
                 </Link>
               </div>
             </>
@@ -171,4 +151,4 @@ export function Header() {
       </div>
     </header>
   );
-}
+});

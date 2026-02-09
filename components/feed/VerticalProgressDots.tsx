@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 
 interface VerticalProgressDotsProps {
@@ -7,7 +8,7 @@ interface VerticalProgressDotsProps {
   current: number;
 }
 
-export function VerticalProgressDots({ total, current }: VerticalProgressDotsProps) {
+export const VerticalProgressDots = memo(function VerticalProgressDots({ total, current }: VerticalProgressDotsProps) {
   // Show max 7 dots, centered around current
   const maxDots = 7;
   const halfDots = Math.floor(maxDots / 2);
@@ -35,4 +36,4 @@ export function VerticalProgressDots({ total, current }: VerticalProgressDotsPro
       ))}
     </div>
   );
-}
+});

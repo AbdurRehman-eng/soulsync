@@ -1,33 +1,33 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { memo, lazy, Suspense, type ComponentType } from "react";
 import { Lock } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { LikeButton } from "@/components/interactions/LikeButton";
 import { ShareButton } from "@/components/interactions/ShareButton";
-import { cn } from "@/lib/utils";
 import type { Card } from "@/types";
 
-// Card type components
-import { VerseCard } from "./VerseCard";
-import { DevotionalCard } from "./DevotionalCard";
-import { ArticleCard } from "./ArticleCard";
-import { QuizCard } from "./QuizCard";
-import { GameCard } from "./GameCard";
-import { TaskCard } from "./TaskCard";
-import { PrayerCard } from "./PrayerCard";
-import { MotivationalCard } from "./MotivationalCard";
-import { MemeCard } from "./MemeCard";
-import { FactCard } from "./FactCard";
-import { RiddleCard } from "./RiddleCard";
-import { JokeCard } from "./JokeCard";
-import { ThoughtProvokingCard } from "./ThoughtProvokingCard";
-import { VisualCard } from "./VisualCard";
-import { ShareCard } from "./ShareCard";
-import { MarketingCard } from "./MarketingCard";
-import { MilestoneCard } from "./MilestoneCard";
-import { UpgradeCard } from "./UpgradeCard";
-import { JournalPromptCard } from "./JournalPromptCard";
+// Lazy-load all card type components — they are only loaded when needed
+// This prevents all 18 card types from being bundled into the initial JS
+const VerseCard = lazy(() => import("./VerseCard").then(m => ({ default: m.VerseCard })));
+const DevotionalCard = lazy(() => import("./DevotionalCard").then(m => ({ default: m.DevotionalCard })));
+const ArticleCard = lazy(() => import("./ArticleCard").then(m => ({ default: m.ArticleCard })));
+const QuizCard = lazy(() => import("./QuizCard").then(m => ({ default: m.QuizCard })));
+const GameCard = lazy(() => import("./GameCard").then(m => ({ default: m.GameCard })));
+const TaskCard = lazy(() => import("./TaskCard").then(m => ({ default: m.TaskCard })));
+const PrayerCard = lazy(() => import("./PrayerCard").then(m => ({ default: m.PrayerCard })));
+const MotivationalCard = lazy(() => import("./MotivationalCard").then(m => ({ default: m.MotivationalCard })));
+const MemeCard = lazy(() => import("./MemeCard").then(m => ({ default: m.MemeCard })));
+const FactCard = lazy(() => import("./FactCard").then(m => ({ default: m.FactCard })));
+const RiddleCard = lazy(() => import("./RiddleCard").then(m => ({ default: m.RiddleCard })));
+const JokeCard = lazy(() => import("./JokeCard").then(m => ({ default: m.JokeCard })));
+const ThoughtProvokingCard = lazy(() => import("./ThoughtProvokingCard").then(m => ({ default: m.ThoughtProvokingCard })));
+const VisualCard = lazy(() => import("./VisualCard").then(m => ({ default: m.VisualCard })));
+const ShareCard = lazy(() => import("./ShareCard").then(m => ({ default: m.ShareCard })));
+const MarketingCard = lazy(() => import("./MarketingCard").then(m => ({ default: m.MarketingCard })));
+const MilestoneCard = lazy(() => import("./MilestoneCard").then(m => ({ default: m.MilestoneCard })));
+const UpgradeCard = lazy(() => import("./UpgradeCard").then(m => ({ default: m.UpgradeCard })));
+const JournalPromptCard = lazy(() => import("./JournalPromptCard").then(m => ({ default: m.JournalPromptCard })));
 
 interface FeedCardProps {
   card: Card;
@@ -38,7 +38,18 @@ interface FeedCardProps {
   onView?: () => void;
 }
 
-export function FeedCard({
+// Lightweight card content skeleton while lazy component loads
+function CardContentSkeleton() {
+  return (
+    <div className="flex-1 flex flex-col justify-center gap-3 animate-pulse">
+      <div className="h-6 w-3/4 bg-muted/30 rounded" />
+      <div className="h-4 w-full bg-muted/30 rounded" />
+      <div className="h-4 w-2/3 bg-muted/30 rounded" />
+    </div>
+  );
+}
+
+export const FeedCard = memo(function FeedCard({
   card,
   index,
   isLiked = false,
@@ -53,11 +64,9 @@ export function FeedCard({
   const CardContent = getCardComponent(card.type);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 50 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1, duration: 0.3 }}
-      className="feed-card relative"
+    <div
+      className="feed-card relative animate-fade-in"
+      style={{ animationDelay: `${Math.min(index * 50, 200)}ms` }}
       onClick={onView}
     >
       {/* Background image if available */}
@@ -74,7 +83,9 @@ export function FeedCard({
       <div className="relative h-full flex flex-col p-2 sm:p-4 z-10 overflow-hidden">
         {/* Content area with max height */}
         <div className="flex-1 overflow-hidden flex flex-col justify-center min-h-0">
-          <CardContent card={card} isLocked={isLocked} />
+          <Suspense fallback={<CardContentSkeleton />}>
+            <CardContent card={card} isLocked={isLocked} />
+          </Suspense>
         </div>
 
         {/* Bottom actions - always at the bottom */}
@@ -86,17 +97,10 @@ export function FeedCard({
 
       {/* Locked overlay */}
       {isLocked && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-2xl"
-        >
-          <motion.div
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-2xl animate-fade-in">
+          <div className="animate-bounce-subtle">
             <Lock className="w-12 h-12 text-accent mb-4" />
-          </motion.div>
+          </div>
           <p className="text-lg font-semibold mb-2">Premium Content</p>
           <p className="text-sm text-muted-foreground text-center px-8">
             Upgrade to Level {card.min_membership_level} to unlock this content
@@ -104,7 +108,7 @@ export function FeedCard({
           <button className="mt-4 px-6 py-2 rounded-full bg-accent text-accent-foreground font-medium">
             Upgrade Now
           </button>
-        </motion.div>
+        </div>
       )}
 
       {/* Points reward indicator */}
@@ -113,11 +117,11 @@ export function FeedCard({
           +{card.points_reward} pts
         </div>
       )}
-    </motion.div>
+    </div>
   );
-}
+});
 
-function getCardComponent(type: Card["type"]) {
+function getCardComponent(type: Card["type"]): ComponentType<{ card: Card; isLocked: boolean }> {
   switch (type) {
     case "verse":
       return VerseCard;
