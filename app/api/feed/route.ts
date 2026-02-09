@@ -248,7 +248,9 @@ export async function GET(request: NextRequest) {
         feed_date: today,
       }));
 
-      supabase.from("daily_feed").delete().eq("user_id", user.id).eq("feed_date", today)
+      Promise.resolve(
+        supabase.from("daily_feed").delete().eq("user_id", user.id).eq("feed_date", today)
+      )
         .then(() => supabase.from("daily_feed").insert(feedItems))
         .catch(() => {});
     }
