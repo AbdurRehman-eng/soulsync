@@ -54,19 +54,31 @@ export default function SettingsPage() {
     const fetchSystemStats = async () => {
         try {
             // Fetch multiple stats in parallel
-            const [usersResult, cardsResult, moodsResult, activeCardsResult, premiumUsersResult, pointsResult] = await Promise.all([
+            const [usersResult, cardsResult, moodsResult, activeCardsResult, premiumUsersResult] = await Promise.all([
                 supabase.from("profiles").select("*", { count: "exact", head: true }),
                 supabase.from("cards").select("*", { count: "exact", head: true }),
                 supabase.from("moods").select("*", { count: "exact", head: true }),
                 supabase.from("cards").select("*", { count: "exact", head: true }).eq("is_active", true),
                 supabase.from("profiles").select("*", { count: "exact", head: true }).eq("membership_level", 3),
-                supabase.from("profiles").select("points"),
             ]);
 
-            const totalPoints = pointsResult.data?.reduce((sum, user) => sum + (user.points || 0), 0) || 0;
+            // Use estimated total points (avg points * user count) instead of scanning every row
+            const userCount = usersResult.count || 0;
+            let totalPoints = 0;
+            if (userCount > 0) {
+                const { data: topPoints } = await supabase
+                    .from("profiles")
+                    .select("points")
+                    .order("points", { ascending: false })
+                    .limit(100);
+                if (topPoints && topPoints.length > 0) {
+                    const sampleAvg = topPoints.reduce((sum, u) => sum + (u.points || 0), 0) / topPoints.length;
+                    totalPoints = Math.round(sampleAvg * userCount);
+                }
+            }
 
             setStats({
-                totalUsers: usersResult.count || 0,
+                totalUsers: userCount,
                 totalCards: cardsResult.count || 0,
                 totalMoods: moodsResult.count || 0,
                 activeCards: activeCardsResult.count || 0,

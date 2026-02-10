@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense, memo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardType } from "@/types";
 import { Plus, Edit2, Trash2, Loader2, Search, Eye, Sparkles, Gamepad2, X, Smartphone, Code2 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { CardFormModal } from "../components/CardFormModal";
-import { QuizGeneratorModal } from "../components/QuizGeneratorModal";
-import { ARGameGeneratorModal } from "../components/ARGameGeneratorModal";
+
+// Lazy-load heavy modals — only downloaded when opened
+const CardFormModal = lazy(() => import("../components/CardFormModal").then(m => ({ default: m.CardFormModal })));
+const QuizGeneratorModal = lazy(() => import("../components/QuizGeneratorModal").then(m => ({ default: m.QuizGeneratorModal })));
+const ARGameGeneratorModal = lazy(() => import("../components/ARGameGeneratorModal").then(m => ({ default: m.ARGameGeneratorModal })));
+
 import {
   DndContext,
   closestCenter,
@@ -29,7 +32,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 
 // Table row component with sortable functionality
-function TableRow({
+const TableRow = memo(function TableRow({
   card,
   onEdit,
   onDelete,
@@ -145,12 +148,13 @@ function TableRow({
       </td>
     </tr>
   );
-}
+});
 
 export default function ContentPage() {
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<CardType | "all">("all");
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
@@ -173,6 +177,12 @@ export default function ContentPage() {
   useEffect(() => {
     fetchCards();
   }, []);
+
+  // Debounce search input — avoids re-filtering on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const fetchCards = async () => {
     try {
@@ -229,12 +239,14 @@ export default function ContentPage() {
         sort_order: index,
       }));
 
-      for (const update of updates) {
-        await supabase
-          .from("cards")
-          .update({ sort_order: update.sort_order })
-          .eq("id", update.id);
-      }
+      await Promise.all(
+        updates.map(update =>
+          supabase
+            .from("cards")
+            .update({ sort_order: update.sort_order })
+            .eq("id", update.id)
+        )
+      );
 
       toast.success("Order updated");
     } catch (error) {
@@ -244,7 +256,7 @@ export default function ContentPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm("Are you sure you want to delete this content?")) return;
 
     try {
@@ -255,36 +267,36 @@ export default function ContentPage() {
     } catch (error) {
       toast.error("Failed to delete content");
     }
-  };
+  }, [supabase]);
 
-  const handleCreate = () => {
+  const handleCreate = useCallback(() => {
     setSelectedCard(null);
     setShowModal(true);
-  };
+  }, []);
 
-  const handleEdit = (card: Card) => {
+  const handleEdit = useCallback((card: Card) => {
     setSelectedCard(card);
     setShowModal(true);
-  };
+  }, []);
 
-  const handleView = (card: Card) => {
+  const handleView = useCallback((card: Card) => {
     setViewCard(card);
-  };
+  }, []);
 
-  const handleModalClose = () => {
+  const handleModalClose = useCallback(() => {
     setShowModal(false);
     setSelectedCard(null);
-  };
+  }, []);
 
-  const handleSuccess = () => {
+  const handleSuccess = useCallback(() => {
     fetchCards();
-  };
+  }, []);
 
-  const filteredCards = cards.filter((card) => {
+  const filteredCards = useMemo(() => cards.filter((card) => {
     const matchesFilter = filter === "all" || card.type === filter;
     const matchesSearch = card.title.toLowerCase().includes(search.toLowerCase());
     return matchesFilter && matchesSearch;
-  });
+  }), [cards, filter, search]);
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -386,8 +398,8 @@ export default function ContentPage() {
           <input
             type="text"
             placeholder="Search content..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
           />
         </div>
@@ -560,27 +572,39 @@ export default function ContentPage() {
         </div>
       </div>
 
-      {/* Card Form Modal */}
-      <CardFormModal
-        isOpen={showModal}
-        onClose={handleModalClose}
-        card={selectedCard}
-        onSuccess={handleSuccess}
-      />
+      {/* Card Form Modal — lazy-loaded */}
+      {showModal && (
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><Loader2 className="animate-spin text-white" size={32} /></div>}>
+          <CardFormModal
+            isOpen={showModal}
+            onClose={handleModalClose}
+            card={selectedCard}
+            onSuccess={handleSuccess}
+          />
+        </Suspense>
+      )}
 
-      {/* Quiz Generator Modal */}
-      <QuizGeneratorModal
-        isOpen={showQuizGenerator}
-        onClose={() => setShowQuizGenerator(false)}
-        onSuccess={handleSuccess}
-      />
+      {/* Quiz Generator Modal — lazy-loaded */}
+      {showQuizGenerator && (
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><Loader2 className="animate-spin text-white" size={32} /></div>}>
+          <QuizGeneratorModal
+            isOpen={showQuizGenerator}
+            onClose={() => setShowQuizGenerator(false)}
+            onSuccess={handleSuccess}
+          />
+        </Suspense>
+      )}
 
-      {/* AR Game Generator Modal */}
-      <ARGameGeneratorModal
-        isOpen={showARGameGenerator}
-        onClose={() => setShowARGameGenerator(false)}
-        onSuccess={handleSuccess}
-      />
+      {/* AR Game Generator Modal — lazy-loaded */}
+      {showARGameGenerator && (
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><Loader2 className="animate-spin text-white" size={32} /></div>}>
+          <ARGameGeneratorModal
+            isOpen={showARGameGenerator}
+            onClose={() => setShowARGameGenerator(false)}
+            onSuccess={handleSuccess}
+          />
+        </Suspense>
+      )}
 
       {/* Preview Card Modal */}
       {viewCard && (

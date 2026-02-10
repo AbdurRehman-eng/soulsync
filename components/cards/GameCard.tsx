@@ -132,6 +132,7 @@ export function GameCard({ card, isLocked }: GameCardProps) {
       {/* Game modal - portaled to body, renders over the feed */}
       <GameModal
         card={card}
+        initialGameData={gameData}
         isOpen={showGame}
         onClose={() => setShowGame(false)}
       />

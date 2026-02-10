@@ -47,7 +47,7 @@ export default function AdminDashboard() {
                 supabase.from("profiles").select("*", { count: "exact", head: true }),
                 supabase.from("cards").select("*", { count: "exact", head: true }).eq("is_active", true),
                 supabase.from("moods").select("*", { count: "exact", head: true }),
-                supabase.from("card_interactions").select("*", { count: "exact", head: true }),
+                supabase.from("card_interactions").select("*", { count: "estimated", head: true }),
                 supabase.from("tasks").select("*", { count: "exact", head: true }),
                 supabase.from("levels").select("*", { count: "exact", head: true }),
                 supabase.from("profiles").select("username, created_at").order("created_at", { ascending: false }).limit(5),

@@ -30,64 +30,80 @@ const ARGameViewer = dynamic(
 
 interface GameModalProps {
   card: Card;
+  /** Pre-fetched game data from GameCard (avoids redundant fetch) */
+  initialGameData?: Game | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function GameModal({ card, isOpen, onClose }: GameModalProps) {
+export function GameModal({
+  card,
+  initialGameData,
+  isOpen,
+  onClose,
+}: GameModalProps) {
   const [gameData, setGameData] = useState<Game | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
   const [completed, setCompleted] = useState(false);
   const supabase = useMemo(() => createClient(), []);
 
-  // Fetch game data when modal opens
+  // When modal opens: use pre-fetched data or fetch fresh
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      // Reset everything when closed
+      setGameData(null);
+      setLoading(false);
+      setError(null);
+      setIsPlaying(false);
+      setScore(0);
+      setCompleted(false);
+      return;
+    }
 
-    let mounted = true;
+    // If we already have game data from the card, use it directly
+    if (initialGameData) {
+      setGameData(initialGameData);
+      setLoading(false);
+      setError(null);
+      return;
+    }
 
-    const fetchGameData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+    // Otherwise fetch it
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
 
-        const { data, error: fetchError } = await supabase
-          .from("games")
-          .select("*")
-          .eq("card_id", card.id)
-          .single();
-
-        if (!mounted) return;
-
+    Promise.resolve(
+      supabase
+        .from("games")
+        .select("*")
+        .eq("card_id", card.id)
+        .single()
+    )
+      .then(({ data, error: fetchError }) => {
+        if (cancelled) return;
         if (fetchError) {
-          console.error("Game fetch error:", fetchError);
           setError("Game data not found");
-          return;
+        } else {
+          setGameData(data);
         }
-
-        setGameData(data);
-      } catch (err) {
-        if (mounted) {
-          setError("Failed to load game");
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchGameData();
+      })
+      .catch(() => {
+        if (!cancelled) setError("Failed to load game");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
     return () => {
-      mounted = false;
+      cancelled = true;
     };
-  }, [isOpen, card.id, supabase]);
+  }, [isOpen, card.id, initialGameData, supabase]);
 
-  // Auto-start HTML games once data is loaded
+  // Auto-start HTML games once data is ready
   useEffect(() => {
     if (!gameData || !isOpen) return;
     const isAR = gameData.is_ar_game && gameData.ar_type && gameData.ar_config;
@@ -95,18 +111,6 @@ export function GameModal({ card, isOpen, onClose }: GameModalProps) {
       setIsPlaying(true);
     }
   }, [gameData, isOpen]);
-
-  // Reset state when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setGameData(null);
-      setLoading(true);
-      setError(null);
-      setIsPlaying(false);
-      setScore(0);
-      setCompleted(false);
-    }
-  }, [isOpen]);
 
   // Lock body scroll while modal is open
   useEffect(() => {
@@ -180,7 +184,8 @@ export function GameModal({ card, isOpen, onClose }: GameModalProps) {
   if (!isOpen) return null;
   if (typeof window === "undefined") return null;
 
-  const isARGame = gameData?.is_ar_game && gameData.ar_type && gameData.ar_config;
+  const isARGame =
+    gameData?.is_ar_game && gameData.ar_type && gameData.ar_config;
 
   const modalContent = (
     <AnimatePresence>
@@ -224,7 +229,7 @@ export function GameModal({ card, isOpen, onClose }: GameModalProps) {
           )}
 
           {/* Error state */}
-          {error && (
+          {!loading && error && (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <p className="text-lg font-semibold mb-2">{error}</p>

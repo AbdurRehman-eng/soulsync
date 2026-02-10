@@ -1,34 +1,48 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Profile } from "@/types";
-import { Search, Edit2, Trash2, Loader2, Shield, Crown, User as UserIcon, TrendingUp } from "lucide-react";
+import { Search, Edit2, Trash2, Loader2, Shield, Crown, User as UserIcon, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { UserEditModal } from "../components/UserEditModal";
 
+const PAGE_SIZE = 50;
+
 export default function UsersPage() {
     const [users, setUsers] = useState<Profile[]>([]);
+    const [totalCount, setTotalCount] = useState(0);
+    const [page, setPage] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [searchInput, setSearchInput] = useState("");
     const [search, setSearch] = useState("");
     const [membershipFilter, setMembershipFilter] = useState<number | "all">("all");
     const [showEditModal, setShowEditModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
     const supabase = createClient();
 
+    // Debounce search input
+    useEffect(() => {
+        const timer = setTimeout(() => setSearch(searchInput), 300);
+        return () => clearTimeout(timer);
+    }, [searchInput]);
+
     useEffect(() => {
         fetchUsers();
-    }, []);
+    }, [page]);
 
     const fetchUsers = async () => {
         try {
-            const { data, error } = await supabase
+            setLoading(true);
+            const { data, count, error } = await supabase
                 .from("profiles")
-                .select("*")
-                .order("created_at", { ascending: false });
+                .select("*", { count: "exact" })
+                .order("created_at", { ascending: false })
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
             if (error) throw error;
             setUsers(data || []);
+            setTotalCount(count || 0);
         } catch (error) {
             console.error("Error fetching users:", error);
             toast.error("Failed to load users");
@@ -37,12 +51,12 @@ export default function UsersPage() {
         }
     };
 
-    const handleEdit = (user: Profile) => {
+    const handleEdit = useCallback((user: Profile) => {
         setSelectedUser(user);
         setShowEditModal(true);
-    };
+    }, []);
 
-    const handleDelete = async (id: string, username: string | null) => {
+    const handleDelete = useCallback(async (id: string, username: string | null) => {
         if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) return;
 
         try {
@@ -50,28 +64,39 @@ export default function UsersPage() {
             if (error) throw error;
             toast.success("User deleted");
             setUsers((prev) => prev.filter((u) => u.id !== id));
+            setTotalCount((prev) => prev - 1);
         } catch (error) {
             toast.error("Failed to delete user");
         }
-    };
+    }, [supabase]);
 
-    const handleModalClose = () => {
+    const handleModalClose = useCallback(() => {
         setShowEditModal(false);
         setSelectedUser(null);
-    };
+    }, []);
 
-    const handleSuccess = () => {
+    const handleSuccess = useCallback(() => {
         fetchUsers();
-    };
+    }, [page]);
 
-    const filteredUsers = users.filter((user) => {
+    const filteredUsers = useMemo(() => users.filter((user) => {
         const matchesMembership = membershipFilter === "all" || user.membership_level === membershipFilter;
         const matchesSearch =
+            !search ||
             user.username?.toLowerCase().includes(search.toLowerCase()) ||
             user.display_name?.toLowerCase().includes(search.toLowerCase()) ||
             user.id.toLowerCase().includes(search.toLowerCase());
         return matchesMembership && matchesSearch;
-    });
+    }), [users, search, membershipFilter]);
+
+    const stats = useMemo(() => ({
+        total: totalCount,
+        admins: users.filter(u => u.is_admin).length,
+        premium: users.filter(u => u.membership_level === 3).length,
+        plus: users.filter(u => u.membership_level === 2).length,
+    }), [users, totalCount]);
+
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
     const getMembershipBadge = (level: number) => {
         switch (level) {
@@ -86,18 +111,7 @@ export default function UsersPage() {
         }
     };
 
-    const getStats = () => {
-        return {
-            total: users.length,
-            admins: users.filter(u => u.is_admin).length,
-            premium: users.filter(u => u.membership_level === 3).length,
-            plus: users.filter(u => u.membership_level === 2).length,
-        };
-    };
-
-    const stats = getStats();
-
-    if (loading) {
+    if (loading && users.length === 0) {
         return (
             <div className="flex h-full items-center justify-center">
                 <Loader2 className="animate-spin text-[var(--primary)]" size={48} />
@@ -171,8 +185,8 @@ export default function UsersPage() {
                     <input
                         type="text"
                         placeholder="Search users..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
                         className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                     />
                 </div>
@@ -283,6 +297,34 @@ export default function UsersPage() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between px-6 py-3 border-t border-[var(--border)]">
+                        <p className="text-xs text-[var(--muted-foreground)]">
+                            Showing {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount}
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setPage(p => p - 1)}
+                                disabled={page === 0}
+                                className="p-1.5 rounded-lg hover:bg-[var(--secondary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <ChevronLeft size={18} />
+                            </button>
+                            <span className="text-xs text-[var(--muted-foreground)]">
+                                Page {page + 1} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setPage(p => p + 1)}
+                                disabled={page >= totalPages - 1}
+                                className="p-1.5 rounded-lg hover:bg-[var(--secondary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <ChevronRight size={18} />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Edit Modal */}
