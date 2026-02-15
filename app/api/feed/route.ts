@@ -66,10 +66,15 @@ function pickCardByType(
   usedCardIds: Set<string>,
   seenCardIds: Set<string>,
   seed: number,
-  slotIndex: number
+  slotIndex: number,
+  allowlistIds?: Set<string>
 ): Card | null {
   for (const cardType of slotTypes) {
-    const available = cardsByType.get(cardType) || [];
+    let available = cardsByType.get(cardType) || [];
+    // If an allowlist is provided, only consider cards in it
+    if (allowlistIds) {
+      available = available.filter((c) => allowlistIds.has(c.id));
+    }
     // Prefer unseen cards, then fall back to seen but not-yet-used-today
     const unseen = available.filter((c) => !usedCardIds.has(c.id) && !seenCardIds.has(c.id));
     const notUsedToday = available.filter((c) => !usedCardIds.has(c.id));
@@ -118,9 +123,29 @@ export async function GET(request: NextRequest) {
 
       // Return cached feed if available
       if (cachedFeedResult.data && cachedFeedResult.data.length > 0) {
-        const cards = cachedFeedResult.data
+        // Verify quiz cards in cache still have valid data
+        const cachedCards = cachedFeedResult.data
           .map((item) => item.card)
           .filter((card): card is Card => card !== null);
+
+        const quizCards = cachedCards.filter((c) => c.type === "quiz");
+        let validQuizIds = new Set<string>();
+
+        if (quizCards.length > 0) {
+          const { data: validQuizzes } = await supabase
+            .from("quizzes")
+            .select("card_id, quiz_questions(id)")
+            .in("card_id", quizCards.map((c) => c.id));
+          validQuizIds = new Set(
+            (validQuizzes || [])
+              .filter((q: any) => q.quiz_questions && q.quiz_questions.length > 0)
+              .map((q: any) => q.card_id as string)
+          );
+        }
+
+        const cards = cachedCards.filter(
+          (card) => card.type !== "quiz" || validQuizIds.has(card.id)
+        );
 
         // Log mood asynchronously
         if (moodId) {
@@ -158,6 +183,7 @@ export async function GET(request: NextRequest) {
       journalCheckResult,
       seenContentResult,
       upgradeResult,
+      quizCardIdsWithDataResult,
     ] = await Promise.all([
       // All active cards
       supabase
@@ -214,6 +240,10 @@ export async function GET(request: NextRequest) {
       membershipLevel === 1
         ? supabase.from("cards").select("*").eq("is_active", true).eq("type", "upgrade").limit(1)
         : Promise.resolve({ data: [] as any[] }),
+      // Quiz cards that actually have quiz data + questions
+      supabase
+        .from("quizzes")
+        .select("card_id, quiz_questions(id)"),
     ]);
 
     const allCards = allCardsResult.data || [];
@@ -224,6 +254,13 @@ export async function GET(request: NextRequest) {
     const journalCount = journalCheckResult.count;
     const seenContent = seenContentResult.data || [];
     const upgradeCards = upgradeResult.data || [];
+
+    // Build set of card IDs that have actual quiz data with questions
+    const quizCardIdsWithData = new Set(
+      (quizCardIdsWithDataResult.data || [])
+        .filter((q: any) => q.quiz_questions && q.quiz_questions.length > 0)
+        .map((q: any) => q.card_id as string)
+    );
 
     if (allCards.length === 0) {
       return NextResponse.json({ cards: [] });
@@ -292,25 +329,26 @@ export async function GET(request: NextRequest) {
     // SLOT 4: Quiz of the Day (from separate pool)
     // ============================================
     let quizOfDay: Card | null = null;
-    // First: check for a quiz scheduled specifically for today
+    // First: check for a quiz scheduled specifically for today (must have actual data)
     const scheduledQuiz = dailyQuizCandidates.find(
-      (dq) => dq.scheduled_date === today && dq.card
+      (dq) => dq.scheduled_date === today && dq.card && quizCardIdsWithData.has(dq.card.id)
     );
     if (scheduledQuiz?.card) {
       quizOfDay = scheduledQuiz.card;
     } else {
-      // Fallback: pick from candidate pool using daily seed
+      // Fallback: pick from candidate pool using daily seed (only those with data)
       const candidateQuizzes = dailyQuizCandidates
-        .filter((dq) => !dq.scheduled_date && dq.card)
+        .filter((dq) => !dq.scheduled_date && dq.card && quizCardIdsWithData.has(dq.card.id))
         .map((dq) => dq.card)
         .filter((c): c is Card => c !== null);
       if (candidateQuizzes.length > 0) {
         const idx = Math.abs(seed) % candidateQuizzes.length;
         quizOfDay = candidateQuizzes[idx];
       } else {
-        // Final fallback: pick any quiz from regular cards
+        // Final fallback: pick any quiz from regular cards that has data
         quizOfDay = pickCardByType(
-          cardsByType, ["quiz"], usedCardIds, cooledDownCardIds, seed, 4
+          cardsByType, ["quiz"], usedCardIds, cooledDownCardIds, seed, 4,
+          quizCardIdsWithData
         );
       }
     }

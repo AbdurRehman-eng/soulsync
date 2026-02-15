@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   Loader2,
-  Trophy,
   Clock,
   HelpCircle,
   CheckCircle2,
@@ -18,6 +17,30 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { Card, Quiz, QuizQuestion } from "@/types";
 import { toast } from "react-hot-toast";
+import { Mascot } from "@/components/mascot/Mascot";
+import type { MascotState } from "@/components/mascot/Mascot";
+
+// Encouraging messages for correct answers
+const correctMessages = [
+  "Amazing!",
+  "You got it!",
+  "Brilliant!",
+  "Nailed it!",
+  "Well done!",
+  "Awesome!",
+  "Perfect!",
+  "So smart!",
+];
+
+// Encouraging messages for wrong answers
+const wrongMessages = [
+  "Keep going!",
+  "Almost!",
+  "Don't give up!",
+  "Next one!",
+  "You'll get it!",
+  "Stay strong!",
+];
 
 export default function QuizPage({
   params,
@@ -43,14 +66,20 @@ export default function QuizPage({
   const [score, setScore] = useState(0);
   const [pointsAwarded, setPointsAwarded] = useState(false);
 
-  // Resolve params (Next.js 14+ can pass a Promise)
+  // mascot state
+  const [mascotState, setMascotState] = useState<MascotState>("idle");
+  const [mascotSpeech, setMascotSpeech] = useState("");
+  const mascotTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Resolve params once on mount
+  const paramsRef = useRef(params);
   useEffect(() => {
-    const resolve = async () => {
-      const resolved = await Promise.resolve(params);
-      setCardId(resolved.id);
-    };
-    resolve();
-  }, [params]);
+    let cancelled = false;
+    Promise.resolve(paramsRef.current).then((resolved) => {
+      if (!cancelled) setCardId(resolved.id);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Fetch card + quiz + questions
   useEffect(() => {
@@ -104,6 +133,14 @@ export default function QuizPage({
     fetchData();
   }, [cardId, supabase]);
 
+  // Set mascot to thinking when a new question appears
+  useEffect(() => {
+    if (phase === "playing" && selectedAnswer === null) {
+      setMascotState("thinking");
+      setMascotSpeech("");
+    }
+  }, [phase, currentQuestion, selectedAnswer]);
+
   // --- handlers ---
 
   const handleAnswer = (index: number) => {
@@ -111,9 +148,23 @@ export default function QuizPage({
     setSelectedAnswer(index);
     setShowExplanation(true);
 
-    if (index === questions[currentQuestion].correct_answer) {
+    const isCorrect = index === questions[currentQuestion].correct_answer;
+
+    if (isCorrect) {
       setScore((s) => s + 1);
+      setMascotState("celebrate");
+      setMascotSpeech(correctMessages[Math.floor(Math.random() * correctMessages.length)]);
+    } else {
+      setMascotState("wrong");
+      setMascotSpeech(wrongMessages[Math.floor(Math.random() * wrongMessages.length)]);
     }
+
+    // Return mascot to idle after feedback
+    if (mascotTimerRef.current) clearTimeout(mascotTimerRef.current);
+    mascotTimerRef.current = setTimeout(() => {
+      setMascotState("idle");
+      setMascotSpeech("");
+    }, 2000);
   };
 
   const handleNext = () => {
@@ -179,6 +230,8 @@ export default function QuizPage({
     setShowExplanation(false);
     setScore(0);
     setPointsAwarded(false);
+    setMascotState("idle");
+    setMascotSpeech("");
   };
 
   const goHome = () => router.push("/");
@@ -202,8 +255,17 @@ export default function QuizPage({
 
   if (error || !card || !quiz || questions.length === 0) {
     return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <div className="text-center px-6">
+      <div className="min-h-[100dvh] bg-background flex flex-col">
+        <div className="flex-shrink-0 p-4 flex items-center gap-3 border-b border-border">
+          <button
+            onClick={goBack}
+            className="p-2 rounded-full hover:bg-muted/50 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
+          </button>
+          <h1 className="text-lg font-semibold">Quiz</h1>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
           <HelpCircle className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
           <p className="text-lg font-semibold mb-2">
             {error || "Quiz not found"}
@@ -236,14 +298,15 @@ export default function QuizPage({
         </div>
 
         <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 text-center">
-          {/* Animated trophy */}
-          <motion.div
-            className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-6"
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            <Trophy className="w-12 h-12 text-white" />
-          </motion.div>
+          {/* Mascot instead of plain trophy */}
+          <div className="mb-4">
+            <Mascot
+              state="power-up"
+              size="lg"
+              showSpeechBubble={true}
+              speechText="Ready to test your knowledge? Let's go!"
+            />
+          </div>
 
           <h2 className="text-2xl font-bold mb-2">{card.title}</h2>
           {card.subtitle && (
@@ -313,14 +376,23 @@ export default function QuizPage({
   // ─── QUIZ COMPLETE SCREEN ───────────────────────────────────────────
 
   if (phase === "complete") {
-    const emoji =
+    const completeMascotState: MascotState =
       percentage === 100
-        ? "🎉"
+        ? "celebrate"
         : percentage >= 70
-        ? "👏"
+        ? "happy"
         : percentage >= 50
-        ? "👍"
-        : "💪";
+        ? "idle"
+        : "sad";
+
+    const completeSpeech =
+      percentage === 100
+        ? "Perfect score! You're incredible!"
+        : percentage >= 70
+        ? "Great job! You really know your stuff!"
+        : percentage >= 50
+        ? "Not bad! Keep learning and growing!"
+        : "Don't worry, every attempt makes you stronger!";
 
     return (
       <div className="min-h-[100dvh] bg-background flex flex-col">
@@ -336,13 +408,19 @@ export default function QuizPage({
         </div>
 
         <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 text-center">
+          {/* Mascot replaces the emoji */}
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 200, damping: 15 }}
-            className="text-7xl mb-6"
+            className="mb-4"
           >
-            {emoji}
+            <Mascot
+              state={completeMascotState}
+              size="lg"
+              showSpeechBubble={true}
+              speechText={completeSpeech}
+            />
           </motion.div>
 
           <h2 className="text-3xl font-bold mb-2">Quiz Complete!</h2>
@@ -449,6 +527,17 @@ export default function QuizPage({
             Question {currentQuestion + 1} of {questions.length}
           </p>
         </div>
+
+        {/* Mascot in header — small, reactive */}
+        <div className="flex-shrink-0 mr-1">
+          <Mascot
+            state={mascotState}
+            size="sm"
+            showSpeechBubble={!!mascotSpeech}
+            speechText={mascotSpeech}
+          />
+        </div>
+
         <div className="flex-shrink-0 px-3 py-1 rounded-full bg-purple-500/20 text-purple-500 text-xs font-medium">
           {score}/{currentQuestion + (hasAnswered ? 1 : 0)}
         </div>
