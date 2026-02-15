@@ -155,8 +155,8 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
   if (cards.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
-        <p className="text-xl font-semibold mb-2">No cards yet</p>
-        <p className="text-muted-foreground">
+        <p className="text-lg sm:text-xl font-semibold mb-2">No cards yet</p>
+        <p className="text-sm sm:text-base text-muted-foreground">
           Select your mood to get personalized content
         </p>
       </div>
@@ -164,7 +164,7 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
   }
 
   return (
-    <div className="relative flex-1">
+    <div className="relative flex-1 w-full max-w-[100vw] overflow-x-hidden">
       {/* Vertical scroll container */}
       <div ref={scrollContainerRef} className="vertical-feed-container">
         {cards.map((card, index) => (
@@ -191,6 +191,11 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
         ))}
       </div>
 
+      {/* Card counter */}
+      <div className="fixed bottom-[calc(var(--bottom-nav-clearance)+8px)] left-1/2 -translate-x-1/2 z-30 px-3 py-1 rounded-full bg-black/40 backdrop-blur-sm text-[10px] sm:text-xs text-white/70 font-medium pointer-events-none">
+        {currentIndex + 1} / {cards.length}
+      </div>
+
       {/* Vertical progress dots */}
       <VerticalProgressDots
         total={Math.min(cards.length, 20)}
@@ -199,3 +204,5 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
     </div>
   );
 }
+
+export default CardFeed;

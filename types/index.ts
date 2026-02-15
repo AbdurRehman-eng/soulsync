@@ -69,6 +69,7 @@ export type CardType =
   | "ad"
   | "prayer"
   | "motivational"
+  | "inspiration"
   | "meme"
   | "fact"
   | "riddle"
@@ -79,7 +80,8 @@ export type CardType =
   | "marketing"
   | "milestone"
   | "upgrade"
-  | "journal_prompt";
+  | "journal_prompt"
+  | "pause";
 
 export interface Card {
   id: string;
@@ -166,6 +168,13 @@ export interface CardContent {
   // For journal prompts
   journal_prompt_text?: string;
   journal_prompt_category?: string;
+  // For pause cards
+  pause_message?: string;
+  pause_type?: string; // "default" | "christmas" | "easter" | "seasonal" etc.
+  pause_cta_text?: string;
+  // For inspiration
+  inspiration_text?: string;
+  inspiration_author?: string;
   // Common
   image_url?: string;
 }
@@ -655,4 +664,47 @@ export interface EnhancedGamificationState extends GamificationState {
   recentXPGains: XPTransaction[];
   levelUpPending: boolean;
   achievementsPending: Achievement[];
+}
+
+// ============================================
+// Feed System Types
+// ============================================
+
+export type FeedSlotType =
+  | "game"
+  | "inspiration"
+  | "article"
+  | "riddle"
+  | "motivation"
+  | "visual"
+  | "joke"
+  | "milestone"
+  | "thought_provoking"
+  | "fact"
+  | "meme";
+
+export interface FeedPattern {
+  id: string;
+  name: string;
+  slug: string;
+  slots: FeedSlotType[];
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface UserSeenContent {
+  id: string;
+  user_id: string;
+  card_id: string;
+  card_type: CardType;
+  seen_at: string;
+}
+
+export interface DailyQuizCandidate {
+  id: string;
+  card_id: string;
+  scheduled_date: string | null;
+  is_candidate: boolean;
+  created_at: string;
 }

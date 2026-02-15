@@ -28,6 +28,8 @@ const MarketingCard = lazy(() => import("./MarketingCard").then(m => ({ default:
 const MilestoneCard = lazy(() => import("./MilestoneCard").then(m => ({ default: m.MilestoneCard })));
 const UpgradeCard = lazy(() => import("./UpgradeCard").then(m => ({ default: m.UpgradeCard })));
 const JournalPromptCard = lazy(() => import("./JournalPromptCard").then(m => ({ default: m.JournalPromptCard })));
+const PauseCard = lazy(() => import("./PauseCard").then(m => ({ default: m.PauseCard })));
+const InspirationCard = lazy(() => import("./InspirationCard").then(m => ({ default: m.InspirationCard })));
 
 interface FeedCardProps {
   card: Card;
@@ -162,6 +164,10 @@ function getCardComponent(type: Card["type"]): ComponentType<{ card: Card; isLoc
     case "journal_prompt":
     case "journal":
       return JournalPromptCard;
+    case "pause":
+      return PauseCard;
+    case "inspiration":
+      return InspirationCard;
     default:
       return DefaultCard;
   }

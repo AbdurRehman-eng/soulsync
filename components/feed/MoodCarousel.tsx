@@ -119,7 +119,7 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
   }, [currentIndex, cards.length]);
 
   return (
-    <div className="relative flex-1 flex flex-col">
+    <div className="relative flex-1 flex flex-col w-full max-w-[100vw] overflow-x-hidden">
       {/* Vertical scroll container */}
       <div ref={scrollContainerRef} className="vertical-feed-container">
         {cards.map((card, index) => (
@@ -153,3 +153,5 @@ export function MoodCarousel({ cards, onSwipeUp }: MoodCarouselProps) {
     </div>
   );
 }
+
+export default MoodCarousel;

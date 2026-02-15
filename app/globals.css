@@ -291,13 +291,15 @@ html[data-theme="dark"] textarea {
     color: white;
   }
 
-  /* App Container - Max Width 480px */
+  /* App Container - Max Width 480px, responsive */
   .app-container {
     max-width: 480px;
     margin: 0 auto;
     min-height: 100vh;
+    min-height: 100dvh;
     position: relative;
     width: 100%;
+    overflow-x: hidden;
   }
 
   /* Vertical Scroll Feed Container */
