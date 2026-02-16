@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Gamepad2, Play, Sparkles } from "lucide-react";
+import { Gamepad2, Play, Sparkles, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 import { GameModal } from "./GameModal";
 import type { Card, Game } from "@/types";
 
@@ -16,6 +17,7 @@ export function GameCard({ card, isLocked }: GameCardProps) {
   const [gameData, setGameData] = useState<Game | null>(null);
   const [showGame, setShowGame] = useState(false);
   const supabase = createClient();
+  const router = useRouter();
 
   // Fetch game data on mount (for preview info only - difficulty badge, AR indicator)
   useEffect(() => {
@@ -49,15 +51,21 @@ export function GameCard({ card, isLocked }: GameCardProps) {
     };
   }, [card.id]);
 
-  const handlePlayClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!isLocked) {
-      setShowGame(true);
-    }
-  };
-
   // Determine if this is an AR game
   const isARGame = gameData?.is_ar_game && gameData.ar_type && gameData.ar_config;
+
+  const handlePlayClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isLocked) return;
+
+    // AR games redirect to the dedicated AR page (keeps feed lightweight)
+    if (isARGame) {
+      router.push("/ar");
+      return;
+    }
+
+    setShowGame(true);
+  };
 
   return (
     <>
@@ -105,7 +113,7 @@ export function GameCard({ card, isLocked }: GameCardProps) {
             <p className="text-xs sm:text-sm text-muted-foreground mb-2">{card.subtitle}</p>
           )}
 
-          {/* Play Now button */}
+          {/* Action button */}
           <motion.button
             onClick={handlePlayClick}
             disabled={isLocked}
@@ -116,8 +124,17 @@ export function GameCard({ card, isLocked }: GameCardProps) {
             }`}
             whileTap={{ scale: 0.95 }}
           >
-            <Play className="w-4 h-4" />
-            Play Now
+            {isARGame ? (
+              <>
+                <ArrowRight className="w-4 h-4" />
+                Open AR
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4" />
+                Play Now
+              </>
+            )}
           </motion.button>
 
           {/* Difficulty badge */}
@@ -129,13 +146,15 @@ export function GameCard({ card, isLocked }: GameCardProps) {
         </div>
       </div>
 
-      {/* Game modal - portaled to body, renders over the feed */}
-      <GameModal
-        card={card}
-        initialGameData={gameData}
-        isOpen={showGame}
-        onClose={() => setShowGame(false)}
-      />
+      {/* Game modal - only for HTML/JSON games (AR games navigate to /ar page) */}
+      {!isARGame && (
+        <GameModal
+          card={card}
+          initialGameData={gameData}
+          isOpen={showGame}
+          onClose={() => setShowGame(false)}
+        />
+      )}
     </>
   );
 }

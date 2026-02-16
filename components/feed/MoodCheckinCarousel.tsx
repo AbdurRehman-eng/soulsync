@@ -283,24 +283,17 @@ export function MoodCheckinCarousel({ verseCard, onDismiss }: MoodCheckinCarouse
         </div>
 
         {/* Bottom actions */}
-        <div className="px-4 pb-3 pt-1 flex flex-col items-center gap-1">
+        <div className="px-4 pb-3 pt-1 flex flex-col items-center">
           {/* Swipe up hint */}
           <motion.div
-            className="flex flex-col items-center text-muted-foreground"
+            className="flex flex-col items-center text-muted-foreground cursor-pointer"
             animate={{ y: [0, -4, 0] }}
             transition={{ duration: 1.5, repeat: Infinity }}
+            onClick={onDismiss}
           >
             <ChevronUp className="w-5 h-5" />
             <span className="text-[10px]">Swipe up</span>
           </motion.div>
-
-          {/* Skip button */}
-          <button
-            onClick={onDismiss}
-            className="px-6 py-2 rounded-full text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-          >
-            Skip to Feed
-          </button>
         </div>
       </motion.div>
     </AnimatePresence>

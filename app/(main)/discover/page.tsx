@@ -4,9 +4,15 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, TrendingUp, Star, ArrowLeft, X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FeedCard } from "@/components/cards/FeedCard";
 import { FeedSkeleton } from "@/components/feed/FeedSkeleton";
 import type { Card, ContentCategory } from "@/types";
+
+// Categories that have their own dedicated pages (to avoid loading heavy content inline)
+const DEDICATED_PAGES: Record<string, string> = {
+  arena: "/arena",
+};
 
 // Default categories with bento grid sizing
 const CATEGORY_CONFIG: Record<string, { size: "large" | "medium" | "small"; row?: number }> = {
@@ -25,6 +31,7 @@ const CATEGORY_CONFIG: Record<string, { size: "large" | "medium" | "small"; row?
 };
 
 export default function DiscoverPage() {
+  const router = useRouter();
   const [categories, setCategories] = useState<ContentCategory[]>([]);
   const [featuredCards, setFeaturedCards] = useState<Card[]>([]);
   const [trendingCards, setTrendingCards] = useState<Card[]>([]);
@@ -70,6 +77,13 @@ export default function DiscoverPage() {
   };
 
   const handleCategoryClick = async (category: ContentCategory) => {
+    // Redirect to dedicated page if one exists
+    const dedicatedPage = DEDICATED_PAGES[category.slug];
+    if (dedicatedPage) {
+      router.push(dedicatedPage);
+      return;
+    }
+
     setSelectedCategory(category);
     setCategoryLoading(true);
     try {

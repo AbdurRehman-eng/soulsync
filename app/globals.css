@@ -173,7 +173,6 @@ html[data-theme="dark"] textarea {
     @apply relative flex items-center justify-center rounded-full flex-shrink-0;
     width: clamp(44px, 10vw, 54px);
     height: clamp(44px, 10vw, 54px);
-    margin-top: clamp(-16px, -3.5vw, -12px);
     background: linear-gradient(135deg, var(--primary), var(--gradient-accent));
     box-shadow:
       0 0 clamp(8px, 2vw, 14px) var(--primary),
@@ -204,16 +203,19 @@ html[data-theme="dark"] textarea {
   }
 
   .bottom-nav-inner {
-    @apply glass-card flex items-center justify-around transition-all duration-200;
-    padding: clamp(0.4rem, 1.5vw, 0.6rem) clamp(0.75rem, 3vw, 1rem);
+    @apply glass-card transition-all duration-200;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    align-items: center;
+    padding: clamp(0.4rem, 1.5vw, 0.6rem) 0;
     margin: 0 clamp(0.5rem, 2vw, 1rem) clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.5rem, 2vw, 1rem);
     border-radius: clamp(16px, 5vw, 24px);
   }
 
   .nav-item {
-    @apply flex flex-col items-center transition-all duration-200 relative;
+    @apply flex flex-col items-center justify-center transition-all duration-200 relative;
     gap: clamp(0.15rem, 0.5vw, 0.25rem);
-    padding: clamp(0.3rem, 1vw, 0.5rem) clamp(0.5rem, 2vw, 0.75rem);
+    padding: clamp(0.3rem, 1vw, 0.5rem) 0;
     color: var(--muted-foreground);
     font-size: clamp(0.6rem, 1.8vw, 0.7rem);
     font-weight: 500;

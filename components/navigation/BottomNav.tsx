@@ -44,7 +44,7 @@ export const BottomNav = memo(function BottomNav() {
         ))}
 
         {/* Center Soul Sync Button */}
-        <div className="flex items-center">
+        <div className="flex items-center justify-center">
           <SoulSyncButton onClick={handleSoulSyncClick} />
         </div>
 
