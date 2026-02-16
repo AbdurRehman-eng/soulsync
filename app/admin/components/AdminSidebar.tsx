@@ -15,6 +15,9 @@ import {
     Trophy,
     FolderOpen,
     BookOpen,
+    Pause,
+    Shuffle,
+    HelpCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -27,6 +30,9 @@ const navItems = [
     { href: "/admin/categories", icon: FolderOpen, label: "Categories" },
     { href: "/admin/tasks", icon: ListTodo, label: "Tasks" },
     { href: "/admin/levels", icon: Trophy, label: "Levels" },
+    { href: "/admin/feed-patterns", icon: Shuffle, label: "Feed Patterns" },
+    { href: "/admin/pause-cards", icon: Pause, label: "Pause Cards" },
+    { href: "/admin/daily-quiz", icon: HelpCircle, label: "Daily Quiz" },
     { href: "/admin/users", icon: Users, label: "Users" },
     { href: "/admin/settings", icon: Settings, label: "Settings" },
     { href: "/admin/manual", icon: BookOpen, label: "Manual" },

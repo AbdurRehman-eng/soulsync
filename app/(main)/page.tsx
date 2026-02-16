@@ -11,8 +11,8 @@ import type { Card } from "@/types";
 
 // Lazy-load heavy components not needed on first paint
 const Mascot = dynamic(() => import("@/components/mascot/Mascot").then(m => ({ default: m.Mascot })), { ssr: false });
-const MoodCarousel = dynamic(() => import("@/components/feed/MoodCarousel").then(m => ({ default: m.MoodCarousel })), { ssr: false });
 const CardFeed = dynamic(() => import("@/components/feed/CardFeed").then(m => ({ default: m.CardFeed })), { ssr: false });
+const MoodCheckinCarousel = dynamic(() => import("@/components/feed/MoodCheckinCarousel").then(m => ({ default: m.MoodCheckinCarousel })), { ssr: false });
 
 // Use the layout's single MoodSelector instance via custom event
 function openMoodSelector() {
@@ -22,11 +22,9 @@ function openMoodSelector() {
 export default function HomePage() {
   const { isSynced, currentMood } = useMoodStore();
   const { profile } = useUserStore();
-  const [showFeed, setShowFeed] = useState(false);
-  const [mascotState, setMascotState] = useState<"idle" | "power-up" | "happy">(
-    "idle"
-  );
-  const [moodCards, setMoodCards] = useState<Card[]>([]);
+  const [phase, setPhase] = useState<"welcome" | "checkin" | "feed">("welcome");
+  const [mascotState, setMascotState] = useState<"idle" | "power-up" | "happy">("idle");
+  const [feedCards, setFeedCards] = useState<Card[]>([]);
   const [loadingCards, setLoadingCards] = useState(false);
   // Track whether MoodSelector already pre-fetched cards so we don't double-fetch
   const feedPreloadedRef = useRef(false);
@@ -34,13 +32,23 @@ export default function HomePage() {
   const greeting = getGreeting();
   const userName = profile?.display_name || profile?.username;
 
+  // Determine phase based on sync state
+  useEffect(() => {
+    if (!isSynced) {
+      setPhase("welcome");
+    } else if (phase === "welcome") {
+      // Just synced — show mood check-in carousel
+      setPhase("checkin");
+    }
+  }, [isSynced]);
+
   // Listen for pre-fetched feed cards from MoodSelector
   useEffect(() => {
     const handler = (e: Event) => {
       const cards = (e as CustomEvent).detail?.cards;
       if (Array.isArray(cards)) {
         feedPreloadedRef.current = true;
-        setMoodCards(cards);
+        setFeedCards(cards);
         setLoadingCards(false);
       }
     };
@@ -49,7 +57,7 @@ export default function HomePage() {
   }, []);
 
   // Fetch cards from API when mood is synced (only if not already pre-loaded)
-  const fetchMoodCards = useCallback(async () => {
+  const fetchFeedCards = useCallback(async () => {
     if (!isSynced) return;
 
     // Skip if MoodSelector already delivered the cards
@@ -57,18 +65,18 @@ export default function HomePage() {
       feedPreloadedRef.current = false;
       return;
     }
-    
+
     setLoadingCards(true);
     try {
       const url = new URL('/api/feed', window.location.origin);
       if (currentMood?.id) {
         url.searchParams.set('mood_id', currentMood.id);
       }
-      
+
       const response = await fetch(url.toString());
       if (response.ok) {
         const data = await response.json();
-        setMoodCards(data.cards || []);
+        setFeedCards(data.cards || []);
       }
     } catch (error) {
       console.error("[HomePage] Failed to fetch cards:", error);
@@ -80,9 +88,9 @@ export default function HomePage() {
   // Fetch cards when mood changes or becomes synced
   useEffect(() => {
     if (isSynced) {
-      fetchMoodCards();
+      fetchFeedCards();
     }
-  }, [isSynced, currentMood?.id, fetchMoodCards]);
+  }, [isSynced, currentMood?.id, fetchFeedCards]);
 
   // Power up mascot animation on mount
   useEffect(() => {
@@ -100,12 +108,13 @@ export default function HomePage() {
     }
   }, [isSynced, currentMood]);
 
-  if (!isSynced) {
-    // Unsynced state - show mascot welcome
+  // ==========================================
+  // PHASE 1: Welcome — user hasn't synced mood
+  // ==========================================
+  if (phase === "welcome" || !isSynced) {
     return (
       <div className="flex-1 flex flex-col overflow-x-hidden">
         <div className="flex-1 flex flex-col items-center justify-center px-3 text-center overflow-hidden animate-fade-in">
-          {/* Mascot and speech bubble row */}
           <div className="relative flex items-start justify-start w-full max-w-xs sm:max-w-sm mx-auto mb-3 sm:mb-4">
             <Mascot
               state={mascotState}
@@ -137,57 +146,46 @@ export default function HomePage() {
     );
   }
 
-  if (showFeed) {
-    // Full feed view
+  // ==========================================
+  // PHASE 2: Mood check-in carousel
+  // Shows mood-specific verse/devotional/prayer
+  // ==========================================
+  if (phase === "checkin") {
+    // Find the first verse card (slot 1 of feed) which contains devotional + prayer
+    const verseCard = feedCards.find(c => c.type === "verse") || null;
+
+    if (loadingCards) {
+      return (
+        <div className="flex-1 flex flex-col overflow-x-hidden">
+          <FeedSkeleton />
+        </div>
+      );
+    }
+
     return (
       <div className="flex-1 flex flex-col overflow-x-hidden">
-        <div className="flex-1 flex flex-col animate-fade-in">
-          {/* Mood badge - fixed so it doesn't scroll with cards */}
-          <div className="fixed top-28 left-0 right-0 z-30 px-2 sm:px-4 flex items-center justify-between bg-gradient-to-b from-background to-transparent pb-2 sm:pb-4">
-            <MoodBadge onClick={openMoodSelector} />
-            <button
-              onClick={() => setShowFeed(false)}
-              className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Back
-            </button>
-          </div>
-
-          {/* Add top padding to account for fixed mood badge */}
-          <div className="pt-16">
-            <CardFeed initialCards={moodCards} />
-          </div>
-        </div>
+        <MoodCheckinCarousel
+          verseCard={verseCard}
+          onDismiss={() => setPhase("feed")}
+        />
       </div>
     );
   }
 
-  // Synced state - show mood carousel
+  // ==========================================
+  // PHASE 3: Main universal feed (20 cards)
+  // ==========================================
   return (
-    <div className="flex-1 flex flex-col overflow-x-hidden">
-      <div className="flex-1 flex flex-col overflow-hidden animate-fade-in">
-        {/* Header with mood badge */}
-        <div className="px-2 sm:px-4 mb-2 sm:mb-4 flex items-center gap-2 sm:gap-3">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col animate-fade-in min-h-0">
+        {/* Mood badge */}
+        <div className="flex-shrink-0 z-30 px-2 sm:px-4 py-2 flex items-center justify-between">
           <MoodBadge onClick={openMoodSelector} />
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Content curated for your mood
-          </p>
         </div>
 
-        {/* Mood-specific cards carousel */}
-        <div className="flex-1 flex flex-col justify-center overflow-hidden">
-          {loadingCards ? (
-            <FeedSkeleton />
-          ) : moodCards.length > 0 ? (
-            <MoodCarousel cards={moodCards} />
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
-              <p className="text-lg font-semibold mb-2">No cards available</p>
-              <p className="text-muted-foreground text-sm">
-                Check back later for new content
-              </p>
-            </div>
-          )}
+        {/* Feed */}
+        <div className="flex-1 min-h-0">
+          <CardFeed initialCards={feedCards} />
         </div>
       </div>
     </div>

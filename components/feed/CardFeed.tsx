@@ -164,7 +164,7 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
   }
 
   return (
-    <div className="relative flex-1 w-full max-w-[100vw] overflow-x-hidden">
+    <div className="relative h-full w-full max-w-[100vw] overflow-x-hidden">
       {/* Vertical scroll container */}
       <div ref={scrollContainerRef} className="vertical-feed-container">
         {cards.map((card, index) => (

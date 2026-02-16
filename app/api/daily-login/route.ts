@@ -1,6 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
+/** Get today's date string in UK time (Europe/London) */
+function getUKDateString(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" }); // "YYYY-MM-DD"
+}
+
+/** Get current day of week in UK time (0=Sun, 6=Sat) */
+function getUKDayOfWeek(): number {
+  const ukDay = new Date().toLocaleDateString("en-US", { timeZone: "Europe/London", weekday: "short" });
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return dayMap[ukDay] ?? new Date().getDay();
+}
+
 // ============================================
 // POST - Process daily login and award rewards
 // ============================================
@@ -26,13 +38,14 @@ export async function POST(request: NextRequest) {
 
     if (profileError) throw profileError;
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = getUKDateString();
     const lastLoginDate = profile.last_login_date;
 
     // Check if already logged in today
     if (lastLoginDate === today) {
       return NextResponse.json({
         alreadyLoggedIn: true,
+        currentStreak: profile.current_streak || 0,
         message: "You've already received your daily login reward today!",
       });
     }
@@ -105,8 +118,8 @@ export async function POST(request: NextRequest) {
     const streakMultiplier = 1 + Math.floor(newStreak / streakThreshold) * streakIncrement;
     multiplier = streakMultiplier;
 
-    // Check for weekend bonus
-    const dayOfWeek = new Date().getDay();
+    // Check for weekend bonus (UK time)
+    const dayOfWeek = getUKDayOfWeek();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     let weekendBonus = 0;
     let weekendXP = 0;
@@ -421,7 +434,7 @@ export async function GET() {
       .eq("id", user.id)
       .single();
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = getUKDateString();
     const alreadyLoggedIn = profile?.last_login_date === today;
 
     return NextResponse.json({

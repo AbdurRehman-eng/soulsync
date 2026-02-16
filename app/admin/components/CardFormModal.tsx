@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Loader2, Sparkles, Eye, Code2 } from "lucide-react";
+import { X, Loader2, Sparkles, Eye, Code2, Upload, Maximize2, Minimize2, Smartphone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card, CardType, ContentCategory } from "@/types";
+import { Card, CardType, CardContent, ContentCategory } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import { SandboxedIframe } from "@/components/sandbox/SandboxedIframe";
+import { FeedCard } from "@/components/cards/FeedCard";
 import { toast } from "react-hot-toast";
 
 interface CardFormModalProps {
@@ -65,7 +66,39 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
     const [gameInstructions, setGameInstructions] = useState("");
     const [gameMaxScore, setGameMaxScore] = useState(200);
     const [showGamePreview, setShowGamePreview] = useState(false);
+    const [gamePreviewFullscreen, setGamePreviewFullscreen] = useState(false);
     const [quizJsonError, setQuizJsonError] = useState<string | null>(null);
+
+    // Handle HTML file upload for games
+    const handleGameFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.name.endsWith('.html') && !file.name.endsWith('.htm') && file.type !== 'text/html') {
+            toast.error("Please upload an HTML file (.html or .htm)");
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error("File too large. Max 5MB.");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const content = event.target?.result as string;
+            if (content) {
+                setRawHtmlContent(content);
+                // Auto-extract title from <title> tag if title field is empty
+                if (!title) {
+                    const titleMatch = content.match(/<title[^>]*>(.*?)<\/title>/i);
+                    if (titleMatch?.[1]) setTitle(titleMatch[1].trim());
+                }
+                toast.success(`Loaded ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+            }
+        };
+        reader.onerror = () => toast.error("Failed to read file");
+        reader.readAsText(file);
+        // Reset input so same file can be re-uploaded
+        e.target.value = "";
+    }, [title]);
 
     // Featured / Trending / Pin controls
     const [isFeatured, setIsFeatured] = useState(false);
@@ -83,7 +116,81 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
     const [generating, setGenerating] = useState(false);
     const [aiTheme, setAiTheme] = useState("");
     const [showAiInput, setShowAiInput] = useState(false);
+    const [showLivePreview, setShowLivePreview] = useState(false);
     const supabase = createClient();
+
+    // Build a mock Card object from current form state for live preview
+    const buildPreviewCard = useCallback((): Card => {
+        const content: CardContent = {};
+        switch (type) {
+            case "verse":
+                content.verse_text = verseText; content.verse_reference = verseReference;
+                break;
+            case "devotional": case "article":
+                content.body = body; content.author = author; content.read_time = readTime;
+                break;
+            case "prayer":
+                content.prayer_text = prayerText;
+                break;
+            case "motivational":
+                content.quote = quote; content.quote_author = quoteAuthor;
+                break;
+            case "meme":
+                content.meme_text_top = memeTextTop; content.meme_text_bottom = memeTextBottom; content.image_url = imageUrl;
+                break;
+            case "fact":
+                content.fact_text = factText; content.fact_source = factSource;
+                break;
+            case "riddle":
+                content.riddle_question = riddleQuestion; content.riddle_answer = riddleAnswer; content.riddle_hint = riddleHint;
+                break;
+            case "joke":
+                content.joke_setup = jokeSetup; content.joke_punchline = jokePunchline;
+                break;
+            case "thought_provoking":
+                content.thought_text = thoughtText; content.thought_source = thoughtSource;
+                break;
+            case "inspiration":
+                content.inspiration_text = body; content.inspiration_author = author;
+                break;
+            case "marketing":
+                content.cta_text = ctaText; content.cta_url = ctaUrl; content.image_url = imageUrl;
+                break;
+            case "upgrade":
+                content.upgrade_message = upgradeMessage;
+                break;
+            case "journal_prompt":
+                content.journal_prompt_text = journalPromptText;
+                break;
+        }
+        if (imageUrl) content.image_url = imageUrl;
+
+        return {
+            id: card?.id || "preview-card",
+            type,
+            title: title || "Untitled",
+            subtitle: subtitle || null,
+            content,
+            thumbnail_url: null,
+            background_url: null,
+            min_membership_level: minMembershipLevel,
+            points_reward: pointsReward,
+            is_active: isActive,
+            is_pinned: isPinned,
+            pin_position: pinPosition,
+            pin_start: pinStart || null,
+            pin_end: pinEnd || null,
+            publish_date: null,
+            sort_order: 0,
+            is_featured: isFeatured,
+            is_trending: isTrending,
+            featured_start: featuredStart || null,
+            featured_end: featuredEnd || null,
+            category_id: categoryId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        };
+    }, [type, title, subtitle, verseText, verseReference, body, author, readTime, prayerText, quote, quoteAuthor, memeTextTop, memeTextBottom, factText, factSource, riddleQuestion, riddleAnswer, riddleHint, jokeSetup, jokePunchline, thoughtText, thoughtSource, ctaText, ctaUrl, upgradeMessage, journalPromptText, imageUrl, isActive, isPinned, pinPosition, pinStart, pinEnd, isFeatured, isTrending, featuredStart, featuredEnd, categoryId, pointsReward, minMembershipLevel, card]);
 
     // Fetch categories for dropdown
     useEffect(() => {
@@ -948,36 +1055,80 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                 return (
                     <>
                         <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-sm">
-                            <p className="text-blue-400 font-medium mb-1">Raw HTML Game Editor</p>
+                            <p className="text-blue-400 font-medium mb-1">HTML5 Game Editor</p>
                             <p className="text-[var(--muted-foreground)] text-xs">
-                                Paste raw HTML/CSS/JS. The game runs in a sandboxed iframe (Blob URL + strict CSP).
+                                Upload an HTML file or paste raw HTML/CSS/JS. Games run in a sandboxed iframe.
                                 Use <code className="bg-[var(--secondary)] px-1 rounded">SoulSync.postScore(n)</code> and
                                 <code className="bg-[var(--secondary)] px-1 rounded ml-1">SoulSync.complete(n)</code> to
                                 communicate score back to the app.
                             </p>
                         </div>
+
+                        {/* Upload + paste toggle */}
                         <div>
                             <div className="flex items-center justify-between mb-2">
                                 <label className="block text-sm font-medium text-[var(--foreground)]">
                                     Game HTML *
                                 </label>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowGamePreview(!showGamePreview)}
-                                    className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline"
-                                >
-                                    {showGamePreview ? <Code2 size={14} /> : <Eye size={14} />}
-                                    {showGamePreview ? "Code" : "Preview"}
-                                </button>
-                            </div>
-                            {showGamePreview ? (
-                                <div className="w-full h-64 rounded-lg overflow-hidden border border-[var(--border)]">
-                                    <SandboxedIframe
-                                        htmlContent={rawHtmlContent}
-                                        title="Game Preview"
-                                        className="w-full h-full"
-                                    />
+                                <div className="flex items-center gap-2">
+                                    <label className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline cursor-pointer">
+                                        <Upload size={14} />
+                                        Upload .html
+                                        <input
+                                            type="file"
+                                            accept=".html,.htm,text/html"
+                                            onChange={handleGameFileUpload}
+                                            className="hidden"
+                                        />
+                                    </label>
+                                    <span className="text-[var(--muted-foreground)] text-xs">|</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowGamePreview(!showGamePreview); setGamePreviewFullscreen(false); }}
+                                        className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline"
+                                    >
+                                        {showGamePreview ? <Code2 size={14} /> : <Eye size={14} />}
+                                        {showGamePreview ? "Code" : "Preview"}
+                                    </button>
+                                    {showGamePreview && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setGamePreviewFullscreen(!gamePreviewFullscreen)}
+                                            className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline"
+                                        >
+                                            {gamePreviewFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                                        </button>
+                                    )}
                                 </div>
+                            </div>
+
+                            {showGamePreview ? (
+                                gamePreviewFullscreen ? (
+                                    <div className="fixed inset-0 z-[200] bg-black flex flex-col">
+                                        <div className="flex items-center justify-between px-4 py-2 bg-[var(--background)] border-b border-[var(--border)]">
+                                            <span className="text-sm font-medium text-[var(--foreground)]">Game Preview (Fullscreen)</span>
+                                            <button type="button" onClick={() => setGamePreviewFullscreen(false)}
+                                                className="p-1.5 rounded-lg hover:bg-[var(--secondary)] text-[var(--foreground)]">
+                                                <Minimize2 size={18} />
+                                            </button>
+                                        </div>
+                                        <div className="flex-1">
+                                            <SandboxedIframe
+                                                htmlContent={rawHtmlContent}
+                                                title="Game Preview"
+                                                className="w-full h-full"
+                                            />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="w-full h-80 rounded-lg overflow-hidden border border-[var(--border)]">
+                                        <SandboxedIframe
+                                            htmlContent={rawHtmlContent}
+                                            title="Game Preview"
+                                            className="w-full h-full"
+                                        />
+                                    </div>
+                                )
                             ) : (
                                 <textarea
                                     value={rawHtmlContent}
@@ -988,7 +1139,14 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                                     spellCheck={false}
                                 />
                             )}
+
+                            {rawHtmlContent && (
+                                <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                                    {(new Blob([rawHtmlContent]).size / 1024).toFixed(1)} KB loaded
+                                </p>
+                            )}
                         </div>
+
                         <div className="grid grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Difficulty</label>
@@ -1389,6 +1547,47 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                                     <label htmlFor="isActive" className="text-sm font-medium text-[var(--foreground)]">
                                         Published (visible to users)
                                     </label>
+                                </div>
+
+                                {/* Live Preview */}
+                                <div className="pt-4 border-t border-[var(--border)]">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowLivePreview(!showLivePreview)}
+                                        className="flex items-center gap-2 text-sm font-medium text-[var(--primary)] hover:underline mb-3"
+                                    >
+                                        <Smartphone size={16} />
+                                        {showLivePreview ? "Hide Live Preview" : "Show Live Preview"}
+                                    </button>
+
+                                    {showLivePreview && (
+                                        <div className="flex justify-center">
+                                            <div
+                                                className="relative rounded-2xl overflow-hidden border-2 border-[var(--border)] shadow-xl"
+                                                style={{ width: 320, height: 460 }}
+                                            >
+                                                {/* Phone frame header */}
+                                                <div className="absolute top-0 left-0 right-0 h-6 bg-black/30 backdrop-blur-sm z-10 flex items-center justify-center">
+                                                    <div className="w-16 h-1 rounded-full bg-white/30" />
+                                                </div>
+                                                {/* Card preview */}
+                                                <div className="w-full h-full" style={{ background: "var(--background)" }}>
+                                                    <div className="w-full h-full p-2 pt-8">
+                                                        <div className="feed-card" style={{ height: "100%" }}>
+                                                            <FeedCard
+                                                                card={buildPreviewCard()}
+                                                                index={0}
+                                                                isLiked={false}
+                                                                onLike={() => {}}
+                                                                onShare={() => {}}
+                                                                onView={() => {}}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Buttons */}

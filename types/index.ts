@@ -116,6 +116,11 @@ export interface CardContent {
   // For verses
   verse_text?: string;
   verse_reference?: string;
+  short_text?: string;
+  devotional?: string;
+  note?: string;
+  prayer?: string;
+  day_number?: number;
   // For devotionals/articles
   body?: string;
   author?: string;

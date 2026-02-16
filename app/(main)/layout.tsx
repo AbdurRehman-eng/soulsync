@@ -56,10 +56,13 @@ export default function MainLayout({
 
         if (profileResult.data) {
           setProfile(profileResult.data);
-          // Check daily login after profile is set (fire-and-forget)
-          fetch("/api/daily-login")
+          // Process daily login and update streak (fire-and-forget)
+          fetch("/api/daily-login", { method: "POST" })
             .then((r) => r.ok ? r.json() : null)
-            .then((data) => { if (data?.currentStreak !== undefined) updateStreak(data.currentStreak); })
+            .then((data) => {
+              if (data?.newStreak !== undefined) updateStreak(data.newStreak);
+              else if (data?.currentStreak !== undefined) updateStreak(data.currentStreak);
+            })
             .catch(() => {});
         } else {
           setProfile(null);
