@@ -26,6 +26,7 @@ import { useUserStore } from "@/stores/userStore";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
+import { MoodHeatMap } from "@/components/profile/MoodHeatMap";
 
 export default function ProfilePage() {
   const { profile, setProfile, isAuthenticated } = useUserStore();
@@ -450,6 +451,9 @@ export default function ProfilePage() {
           </motion.div>
         ))}
       </div>
+
+      {/* Mood Heat Map */}
+      <MoodHeatMap />
 
       {/* Additional Info */}
       <motion.div

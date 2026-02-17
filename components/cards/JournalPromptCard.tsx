@@ -14,11 +14,29 @@ export function JournalPromptCard({ card, isLocked }: JournalPromptCardProps) {
   const [journalText, setJournalText] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e: React.MouseEvent) => {
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (journalText.trim()) {
-      // TODO: Save journal entry via API
-      setSubmitted(true);
+    if (!journalText.trim() || saving) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/journal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: journalText,
+          prompt_card_id: card.id,
+        }),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      }
+    } catch (error) {
+      console.error("Failed to save journal entry:", error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -50,9 +68,10 @@ export function JournalPromptCard({ card, isLocked }: JournalPromptCardProps) {
           />
           <button
             onClick={handleSubmit}
-            className="mt-3 self-center px-5 py-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-sm font-semibold"
+            disabled={saving || !journalText.trim()}
+            className="mt-3 self-center px-5 py-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-sm font-semibold disabled:opacity-50"
           >
-            Save Reflection
+            {saving ? "Saving..." : "Save Reflection"}
           </button>
         </>
       ) : (

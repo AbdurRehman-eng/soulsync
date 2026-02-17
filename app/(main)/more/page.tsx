@@ -16,6 +16,7 @@ import {
   Crown,
   ChevronRight,
   Sparkles,
+  BookOpen,
 } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { useThemeStore, themes, ThemeSlug } from "@/stores/themeStore";
@@ -55,6 +56,7 @@ export default function MorePage() {
       section: "Account",
       items: [
         { icon: User, label: "Profile", href: "/profile" },
+        { icon: BookOpen, label: "Journal", href: "/journal" },
         { icon: Heart, label: "Liked Content", href: "/likes" },
         { icon: Crown, label: "Membership", href: "/membership" },
       ],

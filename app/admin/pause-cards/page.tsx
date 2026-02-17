@@ -97,6 +97,28 @@ export default function PauseCardsPage() {
         setShowForm(true);
     };
 
+    // Sync the pause_cards table (used by feed API) with the cards table
+    const syncPauseCardsTable = async (cardId: string, isDefaultVal: boolean, start: string | null, end: string | null) => {
+        // Upsert into pause_cards so the feed API picks it up
+        const { error } = await supabase
+            .from("pause_cards")
+            .upsert({
+                card_id: cardId,
+                is_default: isDefaultVal,
+                active_start: start || null,
+                active_end: end || null,
+            }, { onConflict: "card_id" });
+        if (error) console.error("Failed to sync pause_cards table:", error);
+
+        // If setting as default, unset others in pause_cards too
+        if (isDefaultVal) {
+            await supabase
+                .from("pause_cards")
+                .update({ is_default: false })
+                .neq("card_id", cardId);
+        }
+    };
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!title.trim() || !message.trim()) {
@@ -122,22 +144,28 @@ export default function PauseCardsPage() {
                 points_reward: 0,
             };
 
+            let savedCardId: string;
+
             if (editingCard) {
                 const { error } = await supabase
                     .from("cards")
                     .update(cardData)
                     .eq("id", editingCard.id);
                 if (error) throw error;
+                savedCardId = editingCard.id;
                 toast.success("Pause card updated");
             } else {
-                const { error } = await supabase
+                const { data: inserted, error } = await supabase
                     .from("cards")
-                    .insert(cardData);
+                    .insert(cardData)
+                    .select("id")
+                    .single();
                 if (error) throw error;
+                savedCardId = inserted.id;
                 toast.success("Pause card created");
             }
 
-            // If setting as default, unset other defaults
+            // If setting as default, unset other defaults in cards table
             if (isDefault) {
                 const others = pauseCards.filter(c => c.id !== editingCard?.id && c.is_default);
                 for (const other of others) {
@@ -147,6 +175,9 @@ export default function PauseCardsPage() {
                         .eq("id", other.id);
                 }
             }
+
+            // Sync to pause_cards table so feed API picks it up
+            await syncPauseCardsTable(savedCardId, isDefault, startDate || null, endDate || null);
 
             resetForm();
             setShowForm(false);
@@ -162,6 +193,8 @@ export default function PauseCardsPage() {
     const handleDelete = async (id: string) => {
         if (!confirm("Delete this pause card?")) return;
         try {
+            // Remove from pause_cards first (FK constraint)
+            await supabase.from("pause_cards").delete().eq("card_id", id);
             const { error } = await supabase.from("cards").delete().eq("id", id);
             if (error) throw error;
             toast.success("Deleted");
@@ -173,7 +206,7 @@ export default function PauseCardsPage() {
 
     const handleSetDefault = async (id: string) => {
         try {
-            // Unset all defaults
+            // Unset all defaults in cards table
             await supabase
                 .from("cards")
                 .update({ is_pinned: false })
@@ -183,6 +216,14 @@ export default function PauseCardsPage() {
                 .from("cards")
                 .update({ is_pinned: true })
                 .eq("id", id);
+
+            // Sync pause_cards table: unset all defaults, then set this one
+            await supabase
+                .from("pause_cards")
+                .update({ is_default: false })
+                .neq("card_id", id);
+            await syncPauseCardsTable(id, true, null, null);
+
             toast.success("Default pause card updated");
             fetchPauseCards();
         } catch {

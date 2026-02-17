@@ -14,6 +14,9 @@ const DEDICATED_PAGES: Record<string, string> = {
   arena: "/arena",
 };
 
+// Categories that render as horizontal scroll carousels instead of vertical lists
+const HORIZONTAL_SCROLL_CATEGORIES = new Set(["share-cards", "joy-moments"]);
+
 // Default categories with bento grid sizing
 const CATEGORY_CONFIG: Record<string, { size: "large" | "medium" | "small"; row?: number }> = {
   "arena": { size: "large" },
@@ -167,19 +170,40 @@ export default function DiscoverPage() {
           {categoryLoading ? (
             <FeedSkeleton />
           ) : categoryCards.length > 0 ? (
-            <div className="space-y-4">
-              {categoryCards.map((card, index) => (
-                <div key={card.id} className="h-[400px]">
-                  <FeedCard
-                    card={card}
-                    index={index}
-                    isLiked={likedCards.has(card.id)}
-                    onLike={() => handleLike(card.id)}
-                    onShare={() => handleShare(card.id)}
-                  />
-                </div>
-              ))}
-            </div>
+            HORIZONTAL_SCROLL_CATEGORIES.has(selectedCategory.slug) ? (
+              /* Horizontal scroll carousel for share cards & memes */
+              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 snap-x snap-mandatory">
+                {categoryCards.map((card, index) => (
+                  <div
+                    key={card.id}
+                    className="flex-shrink-0 w-[85vw] max-w-[360px] h-[420px] snap-center"
+                  >
+                    <FeedCard
+                      card={card}
+                      index={index}
+                      isLiked={likedCards.has(card.id)}
+                      onLike={() => handleLike(card.id)}
+                      onShare={() => handleShare(card.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Standard vertical list for other categories */
+              <div className="space-y-4">
+                {categoryCards.map((card, index) => (
+                  <div key={card.id} className="h-[400px]">
+                    <FeedCard
+                      card={card}
+                      index={index}
+                      isLiked={likedCards.has(card.id)}
+                      onLike={() => handleLike(card.id)}
+                      onShare={() => handleShare(card.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
               <span className="text-4xl mb-3">{selectedCategory.emoji}</span>

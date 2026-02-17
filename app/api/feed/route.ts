@@ -92,6 +92,50 @@ function pickCardByType(
 }
 
 // ============================================
+// Helper: Pick a card weighted by mood relevance
+// Uses card_moods weights — higher weight = more likely
+// Falls back to unweighted pick if no mood data
+// ============================================
+function pickCardByMood(
+  cardsByType: Map<string, Card[]>,
+  slotTypes: CardType[],
+  usedCardIds: Set<string>,
+  seenCardIds: Set<string>,
+  seed: number,
+  slotIndex: number,
+  moodWeights: Map<string, number>, // card_id -> weight for the selected mood
+): Card | null {
+  // If no mood weights available, fall back to regular pick
+  if (moodWeights.size === 0) {
+    return pickCardByType(cardsByType, slotTypes, usedCardIds, seenCardIds, seed, slotIndex);
+  }
+
+  for (const cardType of slotTypes) {
+    const available = cardsByType.get(cardType) || [];
+    const unseen = available.filter((c) => !usedCardIds.has(c.id) && !seenCardIds.has(c.id));
+    const notUsedToday = available.filter((c) => !usedCardIds.has(c.id));
+    const pool = unseen.length > 0 ? unseen : notUsedToday;
+
+    if (pool.length === 0) continue;
+
+    // Build weighted list: repeat each card by its weight
+    const weighted: Card[] = [];
+    for (const card of pool) {
+      const w = moodWeights.get(card.id) || 1;
+      for (let i = 0; i < w; i++) weighted.push(card);
+    }
+
+    if (weighted.length > 0) {
+      const idx = (seed + slotIndex * 7919) % weighted.length;
+      const card = weighted[Math.abs(idx) % weighted.length];
+      usedCardIds.add(card.id);
+      return card;
+    }
+  }
+  return null;
+}
+
+// ============================================
 // Main Feed Endpoint
 // ============================================
 export async function GET(request: NextRequest) {
@@ -184,6 +228,8 @@ export async function GET(request: NextRequest) {
       seenContentResult,
       upgradeResult,
       quizCardIdsWithDataResult,
+      moodWeightsResult,
+      profileStatsResult,
     ] = await Promise.all([
       // All active cards
       supabase
@@ -244,6 +290,21 @@ export async function GET(request: NextRequest) {
       supabase
         .from("quizzes")
         .select("card_id, quiz_questions(id)"),
+      // Card-mood weights for mood-based filtering (slots 1-3)
+      moodId
+        ? supabase
+            .from("card_moods")
+            .select("card_id, weight")
+            .eq("mood_id", moodId)
+        : Promise.resolve({ data: [] as any[] }),
+      // User profile stats for milestone detection
+      user
+        ? supabase
+            .from("profiles")
+            .select("points, current_streak, longest_streak, level, total_shares, total_referrals")
+            .eq("id", user.id)
+            .single()
+        : Promise.resolve({ data: null }),
     ]);
 
     const allCards = allCardsResult.data || [];
@@ -261,6 +322,15 @@ export async function GET(request: NextRequest) {
         .filter((q: any) => q.quiz_questions && q.quiz_questions.length > 0)
         .map((q: any) => q.card_id as string)
     );
+
+    // Build mood weight map: card_id -> weight
+    const moodWeights = new Map<string, number>();
+    for (const mw of (moodWeightsResult.data || [])) {
+      moodWeights.set(mw.card_id, mw.weight || 1);
+    }
+
+    // User stats for milestone detection
+    const userStats = profileStatsResult.data;
 
     if (allCards.length === 0) {
       return NextResponse.json({ cards: [] });
@@ -305,24 +375,24 @@ export async function GET(request: NextRequest) {
     const usedCardIds = new Set<string>();
 
     // ============================================
-    // SLOT 1: Verse of the Day
+    // SLOT 1: Verse of the Day (mood-weighted)
     // ============================================
-    const verseOfDay = pickCardByType(
-      cardsByType, ["verse"], usedCardIds, cooledDownCardIds, seed, 1
+    const verseOfDay = pickCardByMood(
+      cardsByType, ["verse"], usedCardIds, cooledDownCardIds, seed, 1, moodWeights
     );
 
     // ============================================
-    // SLOT 2: Devotional of the Day (note + devotional)
+    // SLOT 2: Devotional of the Day (mood-weighted)
     // ============================================
-    const devotionalOfDay = pickCardByType(
-      cardsByType, ["devotional"], usedCardIds, cooledDownCardIds, seed, 2
+    const devotionalOfDay = pickCardByMood(
+      cardsByType, ["devotional"], usedCardIds, cooledDownCardIds, seed, 2, moodWeights
     );
 
     // ============================================
-    // SLOT 3: Prayer of the Day
+    // SLOT 3: Prayer of the Day (mood-weighted)
     // ============================================
-    const prayerOfDay = pickCardByType(
-      cardsByType, ["prayer"], usedCardIds, cooledDownCardIds, seed, 3
+    const prayerOfDay = pickCardByMood(
+      cardsByType, ["prayer"], usedCardIds, cooledDownCardIds, seed, 3, moodWeights
     );
 
     // ============================================
@@ -376,6 +446,48 @@ export async function GET(request: NextRequest) {
       patternSlots = DEFAULT_PATTERN_SLOTS;
     }
 
+    // ============================================
+    // Milestone detection: check if user qualifies for any unclaimed milestone
+    // ============================================
+    let userHitMilestone = false;
+    if (user && userStats) {
+      // Milestone thresholds to check
+      const streakMilestones = [3, 7, 14, 30, 60, 100];
+      const pointsMilestones = [100, 250, 500, 1000, 2500, 5000];
+
+      const currentStreak = userStats.current_streak || 0;
+      const totalPoints = userStats.points || 0;
+
+      // Check if user just hit any streak milestone
+      for (const threshold of streakMilestones) {
+        if (currentStreak >= threshold && currentStreak < threshold + 2) {
+          // Within 2 days of hitting the milestone — show it
+          userHitMilestone = true;
+          break;
+        }
+      }
+
+      // Check if user just crossed a points milestone
+      if (!userHitMilestone) {
+        for (const threshold of pointsMilestones) {
+          // Show milestone if points are within 20% above threshold (recently crossed)
+          if (totalPoints >= threshold && totalPoints < threshold * 1.2) {
+            userHitMilestone = true;
+            break;
+          }
+        }
+      }
+
+      // Also check level-up (level > 1 means they've leveled up at some point)
+      if (!userHitMilestone && (userStats.level || 1) > 1) {
+        // Show milestone for recent level-ups (check if XP is close to level threshold)
+        // Simple heuristic: level changed recently if streak <= 3 at higher levels
+        if (currentStreak <= 3 && (userStats.level || 1) >= 2) {
+          userHitMilestone = true;
+        }
+      }
+    }
+
     // Build slots 5-19 (15 slots)
     const dynamicCards: (Card | null)[] = [];
     for (let i = 0; i < 15; i++) {
@@ -384,15 +496,17 @@ export async function GET(request: NextRequest) {
 
       // Slot 8 in pattern (position 12 in feed) is milestone placement
       if (slotName === "milestone") {
-        // Check if user hit a milestone — if so, show milestone card
-        const milestoneCard = pickCardByType(
-          cardsByType, ["milestone"], usedCardIds, cooledDownCardIds, seed, i + 5
-        );
-        if (milestoneCard) {
-          dynamicCards.push(milestoneCard);
-          continue;
+        if (userHitMilestone) {
+          // User hit a milestone — show a milestone card
+          const milestoneCard = pickCardByType(
+            cardsByType, ["milestone"], usedCardIds, cooledDownCardIds, seed, i + 5
+          );
+          if (milestoneCard) {
+            dynamicCards.push(milestoneCard);
+            continue;
+          }
         }
-        // No milestone card available, fill with motivational
+        // No milestone earned or no card available — fill with motivational
         const fallback = pickCardByType(
           cardsByType, ["motivational", "inspiration"], usedCardIds, cooledDownCardIds, seed, i + 5
         );
@@ -491,6 +605,30 @@ export async function GET(request: NextRequest) {
         // Insert around position 8
         const pos = Math.min(7, mainFeed.length);
         mainFeed.splice(pos, 0, uc);
+      }
+    }
+
+    // Daily tasks x3 — pick 3 task cards spread across the feed
+    // 1st task is always "visit daily" (auto-completed), 2nd and 3rd are from pool
+    const taskCards = cardsByType.get("task") || [];
+    if (taskCards.length > 0) {
+      const taskPool = taskCards.filter((c) => !mainFeed.some((mc) => mc.id === c.id));
+      const pickedTasks: Card[] = [];
+      for (let t = 0; t < Math.min(3, taskPool.length); t++) {
+        const idx = Math.abs(seed + t * 3571) % taskPool.length;
+        const task = taskPool[idx];
+        if (!pickedTasks.some((p) => p.id === task.id)) {
+          pickedTasks.push(task);
+        }
+        // Remove from pool to avoid duplicates
+        taskPool.splice(idx, 1);
+        if (taskPool.length === 0) break;
+      }
+      // Inject tasks at positions ~6, ~10, ~14 (spread evenly)
+      const taskPositions = [5, 9, 13];
+      for (let t = 0; t < pickedTasks.length; t++) {
+        const pos = Math.min(taskPositions[t] || mainFeed.length - 1, mainFeed.length);
+        mainFeed.splice(pos, 0, pickedTasks[t]);
       }
     }
 
