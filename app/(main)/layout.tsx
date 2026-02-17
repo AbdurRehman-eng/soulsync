@@ -115,7 +115,7 @@ export default function MainLayout({
     <div className="app-container h-screen flex flex-col overflow-hidden">
       <Header />
 
-      <main className="flex-1 min-h-0 pt-[clamp(80px,20vw,96px)] pb-nav-clearance flex flex-col overflow-x-hidden overflow-y-auto scroll-area">{children}</main>
+      <main className="flex-1 min-h-0 pt-[calc(env(safe-area-inset-top,20px)+76px)] pb-nav-clearance flex flex-col overflow-x-hidden overflow-y-auto scroll-area">{children}</main>
 
       <BottomNav />
 
