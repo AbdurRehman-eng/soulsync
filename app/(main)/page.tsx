@@ -179,7 +179,7 @@ export default function HomePage() {
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col animate-fade-in min-h-0">
         {/* Mood badge */}
-        <div className="flex-shrink-0 z-30 px-2 sm:px-4 py-2 flex items-center justify-between">
+        <div className="flex-shrink-0 z-30 px-2 sm:px-4 py-1 flex items-center justify-between">
           <MoodBadge onClick={openMoodSelector} />
         </div>
 
