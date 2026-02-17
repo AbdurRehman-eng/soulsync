@@ -34,36 +34,36 @@ export function ShareCard({ card, isLocked }: ShareCardProps) {
 
   return (
     <div className="flex-1 flex flex-col justify-center items-center text-center overflow-hidden">
-      <div className="flex items-center gap-2 mb-3 self-start">
+      <div className="flex items-center gap-2 mb-2 sm:mb-3 self-start">
         <div className="p-1.5 rounded-lg bg-pink-500/20">
-          <span className="text-lg">💌</span>
+          <span className="text-base sm:text-lg">💌</span>
         </div>
-        <span className="text-xs font-medium text-pink-400">Share Card</span>
+        <span className="text-[10px] sm:text-xs font-medium text-pink-400">Share Card</span>
       </div>
 
-      <div className={`w-full rounded-2xl bg-gradient-to-br ${gradient} p-6 mb-3`}>
+      <div className={`w-full flex-1 rounded-2xl bg-gradient-to-br ${gradient} p-4 sm:p-6 mb-2 sm:mb-3 flex flex-col items-center justify-center`}>
         {content.image_url ? (
           <img
             src={content.image_url}
             alt={card.title}
-            className="w-full h-32 object-cover rounded-xl mb-3"
+            className="w-full h-28 sm:h-36 object-cover rounded-xl mb-2 sm:mb-3"
           />
         ) : (
-          <div className="text-4xl mb-3">{emoji}</div>
+          <div className="text-3xl sm:text-4xl mb-2 sm:mb-3">{emoji}</div>
         )}
 
-        <p className="text-base font-bold leading-relaxed mb-2">
+        <p className="text-sm sm:text-lg md:text-xl font-bold leading-snug sm:leading-relaxed mb-1 sm:mb-2">
           {content.share_text || card.title}
         </p>
 
         {card.subtitle && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[10px] sm:text-xs text-muted-foreground">
             {card.subtitle}
           </p>
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-[10px] sm:text-xs text-muted-foreground">
         Swipe to share with someone who needs this
       </p>
     </div>

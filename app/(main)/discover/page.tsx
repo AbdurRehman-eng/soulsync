@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, TrendingUp, Star, ArrowLeft, X } from "lucide-react";
+import { Search, TrendingUp, Star, ArrowLeft, X, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FeedCard } from "@/components/cards/FeedCard";
@@ -172,21 +172,44 @@ export default function DiscoverPage() {
           ) : categoryCards.length > 0 ? (
             HORIZONTAL_SCROLL_CATEGORIES.has(selectedCategory.slug) ? (
               /* Horizontal scroll carousel for share cards & memes */
-              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 snap-x snap-mandatory">
-                {categoryCards.map((card, index) => (
-                  <div
-                    key={card.id}
-                    className="flex-shrink-0 w-[85vw] max-w-[360px] h-[420px] snap-center"
+              <div className="relative -mx-4">
+                <div className="flex overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
+                  {categoryCards.map((card, index) => (
+                    <div
+                      key={card.id}
+                      className="flex-shrink-0 w-screen snap-center px-3 [&_.feed-card]:max-w-none [&_.feed-card]:aspect-auto"
+                      style={{ maxWidth: "480px" }}
+                    >
+                      <div className="h-[65vh] max-h-[520px]">
+                        <FeedCard
+                          card={card}
+                          index={index}
+                          isLiked={likedCards.has(card.id)}
+                          onLike={() => handleLike(card.id)}
+                          onShare={() => handleShare(card.id)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Swipe hint — only shown when more than 1 card */}
+                {categoryCards.length > 1 && (
+                  <motion.div
+                    initial={{ opacity: 1 }}
+                    animate={{ opacity: 0 }}
+                    transition={{ delay: 2.5, duration: 0.6 }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"
                   >
-                    <FeedCard
-                      card={card}
-                      index={index}
-                      isLiked={likedCards.has(card.id)}
-                      onLike={() => handleLike(card.id)}
-                      onShare={() => handleShare(card.id)}
-                    />
-                  </div>
-                ))}
+                    <motion.div
+                      animate={{ x: [0, 6, 0] }}
+                      transition={{ repeat: 3, duration: 0.8, ease: "easeInOut" }}
+                      className="flex items-center gap-0.5 px-2.5 py-1.5 rounded-full bg-black/50 backdrop-blur-sm"
+                    >
+                      <span className="text-[10px] text-white/80 font-medium">Swipe</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-white/80" />
+                    </motion.div>
+                  </motion.div>
+                )}
               </div>
             ) : (
               /* Standard vertical list for other categories */
