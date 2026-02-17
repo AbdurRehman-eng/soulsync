@@ -83,8 +83,8 @@ export const FeedCard = memo(function FeedCard({
 
       {/* Card content */}
       <div className="relative h-full flex flex-col p-2 sm:p-4 z-10 overflow-hidden">
-        {/* Content area with max height */}
-        <div className="flex-1 overflow-hidden flex flex-col justify-center min-h-0">
+        {/* Content area — scrollable so long content isn't clipped */}
+        <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col justify-center min-h-0">
           <Suspense fallback={<CardContentSkeleton />}>
             <CardContent card={card} isLocked={isLocked} />
           </Suspense>

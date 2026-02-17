@@ -15,18 +15,18 @@ export function RiddleCard({ card, isLocked }: RiddleCardProps) {
   const [showHint, setShowHint] = useState(false);
 
   return (
-    <div className="flex-1 flex flex-col justify-center overflow-hidden">
-      <div className="flex items-center gap-2 mb-3">
+    <div className="flex-1 flex flex-col justify-center overflow-visible">
+      <div className="flex items-center gap-2 mb-2">
         <div className="p-1.5 rounded-lg bg-purple-500/20">
           <span className="text-lg">🧩</span>
         </div>
         <span className="text-xs font-medium text-purple-400">Enigma</span>
       </div>
 
-      <h3 className="text-base font-bold mb-3">{card.title}</h3>
+      <h3 className="text-sm sm:text-base font-bold mb-2">{card.title}</h3>
 
-      <div className="glass-card p-4 rounded-xl mb-3">
-        <p className="text-sm leading-relaxed font-medium">
+      <div className="glass-card p-3 rounded-xl mb-2">
+        <p className="text-xs sm:text-sm leading-relaxed font-medium">
           {content.riddle_question || content.body}
         </p>
       </div>

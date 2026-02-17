@@ -41,18 +41,18 @@ export function JournalPromptCard({ card, isLocked }: JournalPromptCardProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-center overflow-hidden">
-      <div className="flex items-center gap-2 mb-3">
+    <div className="flex-1 flex flex-col justify-center overflow-visible">
+      <div className="flex items-center gap-2 mb-2">
         <div className="p-1.5 rounded-lg bg-indigo-500/20">
-          <span className="text-lg">✨</span>
+          <span className="text-base sm:text-lg">✨</span>
         </div>
         <span className="text-xs font-medium text-indigo-400">Reflection</span>
       </div>
 
-      <h3 className="text-base font-bold mb-2">{card.title || "Time to Reflect"}</h3>
+      <h3 className="text-sm sm:text-base font-bold mb-1.5">{card.title || "Time to Reflect"}</h3>
 
-      <div className="glass-card p-4 rounded-xl mb-3">
-        <p className="text-sm leading-relaxed italic text-muted-foreground">
+      <div className="glass-card p-3 rounded-xl mb-2">
+        <p className="text-xs sm:text-sm leading-relaxed italic text-muted-foreground">
           {content.journal_prompt_text || content.prompt || "What's on your mind today?"}
         </p>
       </div>
@@ -64,12 +64,12 @@ export function JournalPromptCard({ card, isLocked }: JournalPromptCardProps) {
             onChange={(e) => setJournalText(e.target.value)}
             onClick={(e) => e.stopPropagation()}
             placeholder="Start writing your thoughts..."
-            className="w-full h-20 px-3 py-2 rounded-xl bg-[var(--secondary)]/50 border border-[var(--border)] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)] placeholder-[var(--muted-foreground)]"
+            className="w-full h-16 px-3 py-2 rounded-xl bg-black/30 border border-[var(--border)] text-xs sm:text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-white placeholder-white/40"
           />
           <button
             onClick={handleSubmit}
             disabled={saving || !journalText.trim()}
-            className="mt-3 self-center px-5 py-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-sm font-semibold disabled:opacity-50"
+            className="mt-2 self-center px-5 py-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs sm:text-sm font-semibold disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save Reflection"}
           </button>
