@@ -12,6 +12,8 @@ import type { Card, ContentCategory } from "@/types";
 // Categories that have their own dedicated pages (to avoid loading heavy content inline)
 const DEDICATED_PAGES: Record<string, string> = {
   arena: "/arena",
+  "ar-world": "/ar-world",
+  "ar-games": "/ar-games",
 };
 
 // Categories that render as horizontal scroll carousels instead of vertical lists
@@ -20,6 +22,8 @@ const HORIZONTAL_SCROLL_CATEGORIES = new Set(["share-cards", "joy-moments"]);
 // Default categories with bento grid sizing
 const CATEGORY_CONFIG: Record<string, { size: "large" | "medium" | "small"; row?: number }> = {
   "arena": { size: "large" },
+  "ar-world": { size: "large" },
+  "ar-games": { size: "large" },
   "mind-quests": { size: "medium" },
   "joy-moments": { size: "medium" },
   "share-cards": { size: "small" },

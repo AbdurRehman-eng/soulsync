@@ -713,3 +713,40 @@ export interface DailyQuizCandidate {
   is_candidate: boolean;
   created_at: string;
 }
+
+// ============================================
+// AR World Types
+// ============================================
+
+export type ARAssetType = "animal" | "tree" | "object" | "decoration";
+
+export interface ARAsset {
+  id: string;
+  name: string;
+  type: ARAssetType;
+  model_url: string; // GLB/GLTF file URL
+  thumbnail_url: string | null;
+  scale: number; // Default scale for the model
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ARWorldMusic {
+  id: string;
+  name: string;
+  audio_url: string;
+  duration: number | null; // in seconds
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ARWorldSession {
+  id: string;
+  user_id: string;
+  assets_shown: string[]; // Array of AR asset IDs shown
+  music_id: string | null;
+  session_duration: number | null; // in seconds
+  created_at: string;
+}

@@ -1,0 +1,321 @@
+"use client";
+
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { ARAsset, ARWorldMusic } from "@/types";
+import { Camera, Volume2, VolumeX, XCircle } from "lucide-react";
+
+interface ARWorldViewerProps {
+  assets: ARAsset[];
+  music?: ARWorldMusic;
+  onClose?: () => void;
+}
+
+export function ARWorldViewer({ assets, music, onClose }: ARWorldViewerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const modelsRef = useRef<THREE.Object3D[]>([]);
+
+  const [isARSupported, setIsARSupported] = useState(false);
+  const [cameraPermission, setCameraPermission] = useState<"prompt" | "granted" | "denied">("prompt");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [loadedModels, setLoadedModels] = useState(0);
+
+  useEffect(() => {
+    // Check for WebXR support
+    if ("xr" in navigator) {
+      (navigator as any).xr?.isSessionSupported("immersive-ar").then((supported: boolean) => {
+        setIsARSupported(supported);
+        if (!supported) {
+          setError("AR is not supported on this device. Showing 3D preview instead.");
+        }
+      });
+    } else {
+      setError("WebXR is not supported on this browser. Showing 3D preview instead.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    // Initialize Three.js scene
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87ceeb); // Sky blue background
+    sceneRef.current = scene;
+
+    // Camera setup
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      containerRef.current.clientWidth / containerRef.current.clientHeight,
+      0.1,
+      1000
+    );
+    camera.position.set(0, 1.6, 3); // Eye level height
+    cameraRef.current = camera;
+
+    // Renderer setup
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.xr.enabled = true;
+    containerRef.current.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 10, 7.5);
+    scene.add(directionalLight);
+
+    // Add ground plane for reference
+    const groundGeometry = new THREE.PlaneGeometry(20, 20);
+    const groundMaterial = new THREE.MeshStandardMaterial({
+      color: 0x7ec850,
+      roughness: 0.8,
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Load 3D models
+    const loader = new GLTFLoader();
+    let modelsLoaded = 0;
+
+    // Select random assets to show (max 5)
+    const selectedAssets = assets
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.min(5, assets.length));
+
+    selectedAssets.forEach((asset, index) => {
+      loader.load(
+        asset.model_url,
+        (gltf) => {
+          const model = gltf.scene;
+          model.scale.set(asset.scale, asset.scale, asset.scale);
+
+          // Position models in a circle around the user
+          const angle = (index / selectedAssets.length) * Math.PI * 2;
+          const radius = 2 + Math.random() * 1; // 2-3 meters away
+          model.position.set(
+            Math.cos(angle) * radius,
+            0,
+            Math.sin(angle) * radius
+          );
+
+          // Random rotation
+          model.rotation.y = Math.random() * Math.PI * 2;
+
+          model.castShadow = true;
+          model.receiveShadow = true;
+
+          scene.add(model);
+          modelsRef.current.push(model);
+
+          modelsLoaded++;
+          setLoadedModels(modelsLoaded);
+
+          if (modelsLoaded === selectedAssets.length) {
+            setIsLoading(false);
+          }
+        },
+        undefined,
+        (error) => {
+          console.error(`Failed to load model ${asset.name}:`, error);
+          modelsLoaded++;
+          setLoadedModels(modelsLoaded);
+
+          if (modelsLoaded === selectedAssets.length) {
+            setIsLoading(false);
+          }
+        }
+      );
+    });
+
+    // If no assets, stop loading
+    if (selectedAssets.length === 0) {
+      setIsLoading(false);
+    }
+
+    // Animation loop
+    function animate() {
+      animationFrameRef.current = requestAnimationFrame(animate);
+
+      // Gentle rotation animation for models
+      modelsRef.current.forEach((model, index) => {
+        model.rotation.y += 0.002 * (index % 2 === 0 ? 1 : -1);
+      });
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Handle window resize
+    function handleResize() {
+      if (!containerRef.current || !camera || !renderer) return;
+
+      const width = containerRef.current.clientWidth;
+      const height = containerRef.current.clientHeight;
+
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+    window.addEventListener("resize", handleResize);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (renderer) {
+        renderer.dispose();
+        containerRef.current?.removeChild(renderer.domElement);
+      }
+    };
+  }, [assets]);
+
+  // Handle background music
+  useEffect(() => {
+    if (music && audioRef.current) {
+      audioRef.current.src = music.audio_url;
+      audioRef.current.loop = true;
+      audioRef.current.volume = 0.3;
+      if (!isMuted) {
+        audioRef.current.play().catch(console.error);
+      }
+    }
+  }, [music, isMuted]);
+
+  // Memoize selected assets for performance
+  const selectedAssets = useMemo(() => {
+    return assets
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.min(5, assets.length));
+  }, [assets]);
+
+  const requestCameraPermission = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(track => track.stop()); // Stop immediately, just checking permission
+      setCameraPermission("granted");
+    } catch (error) {
+      console.error("Camera permission denied:", error);
+      setCameraPermission("denied");
+      setError("Camera permission is required for AR experience");
+    }
+  }, []);
+
+  const startARSession = useCallback(async () => {
+    if (!rendererRef.current || !isARSupported) return;
+
+    try {
+      await requestCameraPermission();
+
+      const session = await (navigator as any).xr.requestSession("immersive-ar", {
+        requiredFeatures: ["hit-test"],
+        optionalFeatures: ["dom-overlay"],
+      });
+
+      rendererRef.current.xr.setSession(session);
+    } catch (error) {
+      console.error("Failed to start AR session:", error);
+      setError("Failed to start AR session. Please try again.");
+    }
+  }, [isARSupported]);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted(!isMuted);
+    if (audioRef.current) {
+      if (isMuted) {
+        audioRef.current.play().catch(console.error);
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [isMuted]);
+
+  return (
+    <div className="relative w-full h-full touch-none select-none">
+      {/* 3D Canvas Container */}
+      <div ref={containerRef} className="w-full h-full" />
+
+      {/* Audio element */}
+      {music && <audio ref={audioRef} />}
+
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="text-center text-white">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+            <p className="text-sm">Loading AR World...</p>
+            <p className="text-xs opacity-70 mt-1">{loadedModels} of {Math.min(5, assets.length)} models loaded</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error message */}
+      {error && (
+        <div className="absolute top-4 left-4 right-4 bg-yellow-500/90 text-white px-4 py-2 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="absolute bottom-6 left-0 right-0 flex justify-center items-center gap-3 sm:gap-4 px-4 flex-wrap">
+        {isARSupported && cameraPermission !== "denied" && (
+          <button
+            onClick={startARSession}
+            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white/90 backdrop-blur-sm rounded-full font-semibold text-sm sm:text-base text-gray-900 shadow-lg hover:bg-white active:scale-95 transition-all flex items-center gap-2"
+          >
+            <Camera size={18} className="sm:w-5 sm:h-5" />
+            <span className="hidden xs:inline">Enter AR Mode</span>
+            <span className="xs:hidden">AR</span>
+          </button>
+        )}
+
+        {music && (
+          <button
+            onClick={toggleMute}
+            className="p-2.5 sm:p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:bg-white active:scale-95 transition-all"
+            aria-label={isMuted ? "Unmute" : "Mute"}
+          >
+            {isMuted ? <VolumeX size={18} className="sm:w-5 sm:h-5" /> : <Volume2 size={18} className="sm:w-5 sm:h-5" />}
+          </button>
+        )}
+
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="p-2.5 sm:p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:bg-white active:scale-95 transition-all"
+            aria-label="Close"
+          >
+            <XCircle size={18} className="sm:w-5 sm:h-5" />
+          </button>
+        )}
+      </div>
+
+      {/* Instructions */}
+      {!isLoading && (
+        <div className="absolute top-4 left-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm max-w-md mx-auto">
+          <p className="font-semibold mb-0.5 sm:mb-1">AR World Experience</p>
+          <p className="text-[10px] sm:text-xs opacity-90 leading-relaxed">
+            {isARSupported
+              ? "Tap 'Enter AR Mode' to see animals around you with your camera"
+              : "Explore the 3D environment - drag to rotate view"}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

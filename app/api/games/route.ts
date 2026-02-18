@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-// GET /api/games?type=html|ar|all
+// GET /api/games?type=html|ar|all&ar_only=true
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const type = request.nextUrl.searchParams.get("type") || "all";
+    const arOnly = request.nextUrl.searchParams.get("ar_only") === "true";
 
     // Get current user membership level
     const {
@@ -55,13 +56,31 @@ export async function GET(request: NextRequest) {
 
     // Filter by type and attach game metadata
     const games = gameCards
-      .map((card) => ({
-        ...card,
-        game: gamesByCardId.get(card.id) || null,
-      }))
-      .filter((card) => {
-        if (!card.game) return false;
-        const isAR = card.game.is_ar_game && card.game.ar_type && card.game.ar_config;
+      .map((card) => {
+        const game = gamesByCardId.get(card.id) || null;
+        if (!game) return null;
+
+        return {
+          id: game.id,
+          card_id: game.card_id,
+          html_content: card.title,
+          difficulty: game.difficulty,
+          instructions: game.instructions,
+          max_score: game.max_score,
+          is_ar_game: game.is_ar_game,
+          ar_type: game.ar_type,
+          ar_config: game.ar_config,
+          created_at: game.created_at,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => {
+        if (!item) return false;
+        const isAR = item.is_ar_game && item.ar_type && item.ar_config;
+
+        // If ar_only is true, only return AR games
+        if (arOnly) return !!isAR;
+
+        // Otherwise, filter by type
         if (type === "html") return !isAR;
         if (type === "ar") return !!isAR;
         return true; // "all"
