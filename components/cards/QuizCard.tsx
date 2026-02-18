@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   HelpCircle,
-  Trophy,
   ChevronRight,
   Loader2,
   CheckCircle2,
@@ -13,9 +12,33 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { Mascot } from "@/components/mascot/Mascot";
+import type { MascotState } from "@/components/mascot/Mascot";
 import type { Card, QuizQuestion } from "@/types";
 
 const PREVIEW_LIMIT = 3;
+
+const correctMessages = [
+  "Amazing!",
+  "You got it!",
+  "Brilliant!",
+  "Nailed it!",
+  "Well done!",
+  "Awesome!",
+  "Perfect!",
+];
+
+const wrongMessages = [
+  "Keep going!",
+  "Almost!",
+  "Don't give up!",
+  "Next one!",
+  "You'll get it!",
+];
+
+function randomFrom(arr: string[]) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 interface QuizCardProps {
   card: Card;
@@ -36,6 +59,26 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
   const [totalQuestions, setTotalQuestions] = useState(0);
   const prefetchedRef = useRef(false);
 
+  // Mascot state
+  const [mascotState, setMascotState] = useState<MascotState>("idle");
+  const [mascotSpeech, setMascotSpeech] = useState("");
+  const mascotTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear mascot timer on unmount
+  useEffect(() => {
+    return () => {
+      if (mascotTimerRef.current) clearTimeout(mascotTimerRef.current);
+    };
+  }, []);
+
+  // Reset mascot to thinking when a new question appears
+  useEffect(() => {
+    if (phase === "playing" && selectedAnswer === null) {
+      setMascotState("thinking");
+      setMascotSpeech("");
+    }
+  }, [phase, currentQuestion, selectedAnswer]);
+
   // Prefetch quiz data on mount so it's ready when user clicks
   useEffect(() => {
     if (isLocked || prefetchedRef.current) return;
@@ -43,7 +86,6 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
 
     (async () => {
       try {
-        // Single query: quiz + first 3 questions via nested select
         const { data, error } = await supabase
           .from("quizzes")
           .select("id, quiz_questions(*)")
@@ -60,7 +102,6 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
         const fetched = (data as any).quiz_questions as QuizQuestion[];
         if (!fetched || fetched.length === 0) return;
 
-        // Count total questions in parallel (non-blocking)
         supabase
           .from("quiz_questions")
           .select("*", { count: "exact", head: true })
@@ -74,7 +115,7 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
           prefetchedRef.current = true;
         }
       } catch {
-        // Prefetch failed silently — will fetch on click as fallback
+        // Prefetch failed silently
       }
     })();
 
@@ -86,7 +127,6 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
   const handleStartPreview = async () => {
     if (isLocked) return;
 
-    // Data already prefetched — instant transition
     if (prefetchedRef.current && questions.length > 0) {
       setCurrentQuestion(0);
       setSelectedAnswer(null);
@@ -95,7 +135,6 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
       return;
     }
 
-    // Fallback: fetch on click (prefetch didn't finish yet)
     setPhase("loading");
 
     try {
@@ -135,9 +174,23 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
     if (selectedAnswer !== null) return;
     setSelectedAnswer(index);
 
-    if (index === questions[currentQuestion].correct_answer) {
+    const isCorrect = index === questions[currentQuestion].correct_answer;
+
+    if (isCorrect) {
       setScore((s) => s + 1);
+      setMascotState("celebrate");
+      setMascotSpeech(randomFrom(correctMessages));
+    } else {
+      setMascotState("wrong");
+      setMascotSpeech(randomFrom(wrongMessages));
     }
+
+    // Return mascot to idle after feedback
+    if (mascotTimerRef.current) clearTimeout(mascotTimerRef.current);
+    mascotTimerRef.current = setTimeout(() => {
+      setMascotState("idle");
+      setMascotSpeech("");
+    }, 2000);
   };
 
   const handleNext = () => {
@@ -155,6 +208,8 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
     setCurrentQuestion(0);
     setSelectedAnswer(null);
     setScore(0);
+    setMascotState("idle");
+    setMascotSpeech("");
   };
 
   const goToFullQuiz = () => {
@@ -174,8 +229,8 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
             Quiz
           </span>
         </div>
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <Mascot state="thinking" size="sm" showSpeechBubble speechText="Loading..." />
         </div>
       </div>
     );
@@ -189,7 +244,7 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
 
     return (
       <div className="min-h-full flex flex-col overflow-hidden">
-        {/* Header with progress */}
+        {/* Header with progress + mascot */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <div className="p-1.5 sm:p-2 rounded-lg bg-purple-500/20">
@@ -200,9 +255,15 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {currentQuestion + 1}/{questions.length}
-            </span>
+            {/* Mascot in header — small, reactive */}
+            <div className="flex-shrink-0">
+              <Mascot
+                state={mascotState}
+                size="sm"
+                showSpeechBubble={!!mascotSpeech}
+                speechText={mascotSpeech}
+              />
+            </div>
             <div className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-500 text-xs font-medium">
               {score}/{currentQuestion + (hasAnswered ? 1 : 0)}
             </div>
@@ -337,6 +398,24 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
     const percentage = Math.round((score / questions.length) * 100);
     const hasMore = totalQuestions > questions.length;
 
+    const promptMascotState: MascotState =
+      percentage === 100
+        ? "celebrate"
+        : percentage >= 70
+        ? "happy"
+        : percentage >= 50
+        ? "idle"
+        : "sad";
+
+    const promptSpeech =
+      percentage === 100
+        ? "Perfect score!"
+        : percentage >= 70
+        ? "Great job!"
+        : percentage >= 50
+        ? "Not bad! Keep going!"
+        : "Don't worry, try the full quiz!";
+
     return (
       <div className="min-h-full flex flex-col overflow-hidden">
         {/* Header */}
@@ -350,12 +429,24 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
         </div>
 
         <div className="flex-1 flex flex-col justify-center items-center text-center min-h-0 px-2">
-          {/* Score circle */}
+          {/* Mascot with reaction */}
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 200, damping: 15 }}
-            className={`w-16 sm:w-20 h-16 sm:h-20 rounded-full flex flex-col items-center justify-center mb-3 ${
+            className="mb-2"
+          >
+            <Mascot
+              state={promptMascotState}
+              size="sm"
+              showSpeechBubble
+              speechText={promptSpeech}
+            />
+          </motion.div>
+
+          {/* Score */}
+          <div
+            className={`px-4 py-1.5 rounded-full text-sm font-bold mb-1 ${
               percentage >= 70
                 ? "bg-green-500/20 text-green-500"
                 : percentage >= 50
@@ -363,20 +454,11 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
                 : "bg-red-500/20 text-red-500"
             }`}
           >
-            <span className="text-lg sm:text-xl font-bold">{score}/{questions.length}</span>
-            <span className="text-[10px]">{percentage}%</span>
-          </motion.div>
-
-          <h3 className="text-sm sm:text-base font-bold mb-1">
-            {percentage >= 70
-              ? "Great job!"
-              : percentage >= 50
-              ? "Not bad!"
-              : "Keep learning!"}
-          </h3>
+            {score}/{questions.length} — {percentage}%
+          </div>
 
           {hasMore && (
-            <p className="text-xs text-muted-foreground mb-4 max-w-[200px]">
+            <p className="text-xs text-muted-foreground mb-3 max-w-[200px]">
               That was just a preview! The full quiz has{" "}
               <span className="font-semibold text-foreground">
                 {totalQuestions} questions
@@ -389,7 +471,7 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
           )}
 
           {!hasMore && (
-            <p className="text-xs text-muted-foreground mb-4">
+            <p className="text-xs text-muted-foreground mb-3">
               Take the full quiz to earn{" "}
               <span className="font-semibold text-accent">
                 +{card.points_reward} pts
@@ -438,14 +520,15 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
 
       {/* Quiz preview */}
       <div className="flex-1 flex flex-col justify-center items-center text-center min-h-0 px-2">
-        {/* Trophy icon */}
-        <motion.div
-          className="w-14 sm:w-16 h-14 sm:h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-3"
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <Trophy className="w-7 sm:w-8 h-7 sm:h-8 text-white" />
-        </motion.div>
+        {/* Mascot replaces trophy */}
+        <div className="mb-3">
+          <Mascot
+            state="power-up"
+            size="sm"
+            showSpeechBubble
+            speechText="Ready to test your knowledge?"
+          />
+        </div>
 
         {/* Title */}
         <h3 className="text-base sm:text-lg font-bold mb-1">{card.title}</h3>
