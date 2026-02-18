@@ -117,14 +117,6 @@ export default function ARWorldPage() {
 
   return (
     <div className="fixed inset-0 bg-black">
-      {/* Back button */}
-      <button
-        onClick={handleClose}
-        className="absolute top-4 left-4 z-50 p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:bg-white transition-colors"
-      >
-        <ArrowLeft size={20} />
-      </button>
-
       {/* AR World Viewer */}
       <Suspense
         fallback={

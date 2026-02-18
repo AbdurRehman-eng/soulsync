@@ -332,24 +332,24 @@ export default function ARAssetsPage() {
             <form onSubmit={handleUpload} className="p-6 space-y-6">
               {/* Name */}
               <div>
-                <label className="block text-sm font-medium mb-2">Name *</label>
+                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Name *</label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  className="w-full px-4 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="w-full px-4 py-2.5 bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] placeholder:text-[var(--muted-foreground)]"
                   placeholder="e.g., Lion, Oak Tree, Rock"
                 />
               </div>
 
               {/* Type */}
               <div>
-                <label className="block text-sm font-medium mb-2">Type *</label>
+                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Type *</label>
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value as any)}
-                  className="w-full px-4 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="w-full px-4 py-2.5 bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 >
                   <option value="animal">Animal</option>
                   <option value="tree">Tree</option>
@@ -360,13 +360,13 @@ export default function ARAssetsPage() {
 
               {/* Scale */}
               <div>
-                <label className="block text-sm font-medium mb-2">Scale</label>
+                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Scale</label>
                 <input
                   type="number"
                   step="0.1"
                   value={scale}
                   onChange={(e) => setScale(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="w-full px-4 py-2.5 bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] placeholder:text-[var(--muted-foreground)]"
                   placeholder="1.0"
                 />
                 <p className="text-xs text-[var(--muted-foreground)] mt-1">
@@ -376,25 +376,25 @@ export default function ARAssetsPage() {
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium mb-2">Description</label>
+                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Description</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="w-full px-4 py-2.5 bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] placeholder:text-[var(--muted-foreground)]"
                   placeholder="Brief description of the asset..."
                 />
               </div>
 
               {/* 3D Model */}
               <div>
-                <label className="block text-sm font-medium mb-2">3D Model (GLB/GLTF) *</label>
+                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">3D Model (GLB/GLTF) *</label>
                 <input
                   type="file"
                   accept=".glb,.gltf"
                   onChange={handleModelChange}
                   required
-                  className="w-full px-4 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="w-full px-4 py-2.5 bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[var(--primary)] file:text-white hover:file:bg-[var(--primary)]/90"
                 />
                 {modelPreview && (
                   <p className="text-xs text-[var(--muted-foreground)] mt-2">
@@ -408,12 +408,12 @@ export default function ARAssetsPage() {
 
               {/* Thumbnail */}
               <div>
-                <label className="block text-sm font-medium mb-2">Thumbnail (Optional)</label>
+                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Thumbnail (Optional)</label>
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   onChange={handleThumbnailChange}
-                  className="w-full px-4 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="w-full px-4 py-2.5 bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[var(--primary)] file:text-white hover:file:bg-[var(--primary)]/90"
                 />
                 {thumbnailPreview && (
                   <img

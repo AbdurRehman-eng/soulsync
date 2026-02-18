@@ -218,7 +218,7 @@ export default function ARMusicPage() {
             placeholder="Search music..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+            className="w-full pl-10 pr-4 py-2.5 bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] placeholder:text-[var(--muted-foreground)]"
           />
           {searchQuery && (
             <button
@@ -323,26 +323,26 @@ export default function ARMusicPage() {
             <form onSubmit={handleUpload} className="p-6 space-y-6">
               {/* Name */}
               <div>
-                <label className="block text-sm font-medium mb-2">Track Name *</label>
+                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Track Name *</label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  className="w-full px-4 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="w-full px-4 py-2.5 bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] placeholder:text-[var(--muted-foreground)]"
                   placeholder="e.g., Peaceful Forest, Ambient Calm"
                 />
               </div>
 
               {/* Audio File */}
               <div>
-                <label className="block text-sm font-medium mb-2">Audio File (MP3, WAV, OGG) *</label>
+                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Audio File (MP3, WAV, OGG) *</label>
                 <input
                   type="file"
                   accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg"
                   onChange={handleAudioChange}
                   required
-                  className="w-full px-4 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="w-full px-4 py-2.5 bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[var(--primary)] file:text-white hover:file:bg-[var(--primary)]/90"
                 />
                 {audioPreview && (
                   <div className="mt-3 p-3 bg-[var(--secondary)] rounded-lg">
@@ -356,12 +356,12 @@ export default function ARMusicPage() {
 
               {/* Duration (auto-filled) */}
               <div>
-                <label className="block text-sm font-medium mb-2">Duration (seconds)</label>
+                <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">Duration (seconds)</label>
                 <input
                   type="number"
                   value={duration}
                   onChange={(e) => setDuration(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                  className="w-full px-4 py-2.5 bg-[var(--secondary)] text-[var(--foreground)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary)] placeholder:text-[var(--muted-foreground)]"
                   placeholder="Auto-detected"
                 />
                 <p className="text-xs text-[var(--muted-foreground)] mt-1">

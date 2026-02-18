@@ -30,6 +30,8 @@ export function ARWorldViewer({ assets, music, onClose }: ARWorldViewerProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [loadedModels, setLoadedModels] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [arMode, setArMode] = useState<"preview" | "camera">("preview");
+  const [isARSessionActive, setIsARSessionActive] = useState(false);
 
   useEffect(() => {
     // Check if desktop (no touch support or large screen)
@@ -40,6 +42,11 @@ export function ARWorldViewer({ assets, music, onClose }: ARWorldViewerProps) {
     if ("xr" in navigator) {
       (navigator as any).xr?.isSessionSupported("immersive-ar").then((supported: boolean) => {
         setIsARSupported(supported);
+
+        // If AR is supported (mobile device), automatically request camera permission
+        if (supported && !desktop) {
+          requestCameraPermission();
+        }
       }).catch(() => {
         setIsARSupported(false);
       });
@@ -254,22 +261,67 @@ See: ${window.location.origin}/SETUP_AR_STORAGE.md for setup instructions`);
   }, []);
 
   const startARSession = useCallback(async () => {
-    if (!rendererRef.current || !isARSupported) return;
+    if (!rendererRef.current || !sceneRef.current || !isARSupported) return;
 
     try {
-      await requestCameraPermission();
+      // Ensure camera permission is granted
+      if (cameraPermission !== "granted") {
+        await requestCameraPermission();
+        if (cameraPermission === "denied") {
+          setError("Camera permission is required for AR mode");
+          return;
+        }
+      }
 
       const session = await (navigator as any).xr.requestSession("immersive-ar", {
-        requiredFeatures: ["hit-test"],
-        optionalFeatures: ["dom-overlay"],
+        requiredFeatures: ["hit-test", "local"],
+        optionalFeatures: ["dom-overlay", "light-estimation"],
       });
 
-      rendererRef.current.xr.setSession(session);
+      await rendererRef.current.xr.setSession(session);
+
+      // Remove sky background for AR - camera feed will be the background
+      if (sceneRef.current) {
+        sceneRef.current.background = null;
+      }
+
+      setIsARSessionActive(true);
+      setArMode("camera");
+
+      // Handle session end
+      session.addEventListener("end", () => {
+        setIsARSessionActive(false);
+        setArMode("preview");
+        // Restore sky background
+        if (sceneRef.current) {
+          sceneRef.current.background = new THREE.Color(0x87ceeb);
+        }
+      });
+
     } catch (error) {
       console.error("Failed to start AR session:", error);
-      setError("Failed to start AR session. Please try again.");
+      setError("Failed to start AR session. Make sure you're on a compatible device.");
     }
-  }, [isARSupported]);
+  }, [isARSupported, cameraPermission, requestCameraPermission]);
+
+  const stopARSession = useCallback(() => {
+    if (rendererRef.current?.xr) {
+      const session = rendererRef.current.xr.getSession();
+      if (session) {
+        session.end();
+      }
+    }
+  }, []);
+
+  const toggleARMode = useCallback(async () => {
+    if (arMode === "preview") {
+      // Switch to camera AR mode
+      await startARSession();
+    } else {
+      // Switch back to preview mode
+      stopARSession();
+    }
+  }, [arMode, startARSession, stopARSession]);
 
   const toggleMute = useCallback(() => {
     setIsMuted(!isMuted);
@@ -303,13 +355,45 @@ See: ${window.location.origin}/SETUP_AR_STORAGE.md for setup instructions`);
 
       {/* Desktop mode notice */}
       {isDesktop && !isARSupported && !isLoading && !error && (
-        <div className="absolute top-4 left-4 right-4 bg-blue-500/90 backdrop-blur-sm text-white px-4 py-3 rounded-lg text-sm max-w-md mx-auto">
+        <div className="absolute top-4 left-4 right-4 bg-blue-500/90 backdrop-blur-sm text-white px-4 py-3 rounded-lg text-sm max-w-md mx-auto z-10">
           <div className="flex items-center gap-2 mb-1">
             <MousePointer2 size={16} />
             <p className="font-semibold">Desktop 3D Preview Mode</p>
           </div>
           <p className="text-xs opacity-90">
-            AR mode requires a mobile device. Use mouse to rotate view, scroll to zoom.
+            AR camera mode requires a mobile device. Use mouse to rotate view, scroll to zoom.
+          </p>
+        </div>
+      )}
+
+      {/* Camera permission prompt */}
+      {!isDesktop && cameraPermission === "prompt" && !isLoading && !error && (
+        <div className="absolute top-4 left-4 right-4 bg-green-500/90 backdrop-blur-sm text-white px-4 py-3 rounded-lg text-sm max-w-md mx-auto z-10">
+          <div className="flex items-center gap-2 mb-1">
+            <Camera size={16} />
+            <p className="font-semibold">Camera Access Required</p>
+          </div>
+          <p className="text-xs opacity-90 mb-2">
+            Allow camera access to experience AR with real environment
+          </p>
+          <button
+            onClick={requestCameraPermission}
+            className="px-3 py-1.5 bg-white text-green-600 rounded-md text-xs font-semibold hover:bg-green-50 transition-colors"
+          >
+            Allow Camera
+          </button>
+        </div>
+      )}
+
+      {/* Camera permission denied notice */}
+      {!isDesktop && cameraPermission === "denied" && !isLoading && !error && (
+        <div className="absolute top-4 left-4 right-4 bg-yellow-500/90 backdrop-blur-sm text-white px-4 py-3 rounded-lg text-sm max-w-md mx-auto z-10">
+          <div className="flex items-center gap-2 mb-1">
+            <Camera size={16} />
+            <p className="font-semibold">Camera Access Denied</p>
+          </div>
+          <p className="text-xs opacity-90">
+            Enable camera in browser settings to use AR camera mode. Using 3D preview for now.
           </p>
         </div>
       )}
@@ -327,14 +411,20 @@ See: ${window.location.origin}/SETUP_AR_STORAGE.md for setup instructions`);
 
       {/* Controls */}
       <div className="absolute bottom-6 left-0 right-0 flex justify-center items-center gap-3 sm:gap-4 px-4 flex-wrap">
-        {isARSupported && cameraPermission !== "denied" && (
+        {isARSupported && cameraPermission === "granted" && !isLoading && (
           <button
-            onClick={startARSession}
-            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white/90 backdrop-blur-sm rounded-full font-semibold text-sm sm:text-base text-gray-900 shadow-lg hover:bg-white active:scale-95 transition-all flex items-center gap-2"
+            onClick={toggleARMode}
+            className={`px-4 sm:px-6 py-2.5 sm:py-3 backdrop-blur-sm rounded-full font-semibold text-sm sm:text-base shadow-lg active:scale-95 transition-all flex items-center gap-2 ${
+              arMode === "camera"
+                ? "bg-red-500/90 text-white hover:bg-red-600"
+                : "bg-white/90 text-gray-900 hover:bg-white"
+            }`}
           >
             <Camera size={18} className="sm:w-5 sm:h-5" />
-            <span className="hidden xs:inline">Enter AR Mode</span>
-            <span className="xs:hidden">AR</span>
+            <span className="hidden xs:inline">
+              {arMode === "camera" ? "Exit AR Camera" : "Enter AR Camera"}
+            </span>
+            <span className="xs:hidden">{arMode === "camera" ? "Exit AR" : "AR Camera"}</span>
           </button>
         )}
 
@@ -360,12 +450,16 @@ See: ${window.location.origin}/SETUP_AR_STORAGE.md for setup instructions`);
       </div>
 
       {/* Mobile AR Instructions */}
-      {!isLoading && !isDesktop && (
-        <div className="absolute top-4 left-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm max-w-md mx-auto">
-          <p className="font-semibold mb-0.5 sm:mb-1">AR World Experience</p>
+      {!isLoading && !isDesktop && cameraPermission === "granted" && !error && (
+        <div className="absolute top-4 left-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm max-w-md mx-auto z-10">
+          <p className="font-semibold mb-0.5 sm:mb-1">
+            {arMode === "camera" ? "AR Camera Mode Active" : "3D Preview Mode"}
+          </p>
           <p className="text-[10px] sm:text-xs opacity-90 leading-relaxed">
-            {isARSupported
-              ? "Tap 'Enter AR Mode' to see animals around you with your camera"
+            {arMode === "camera"
+              ? "Move your device to see animals in your real environment"
+              : isARSupported
+              ? "Tap 'Enter AR Camera' to see animals with your camera"
               : "Explore the 3D environment - drag to rotate view"}
           </p>
         </div>
