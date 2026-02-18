@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -34,49 +34,99 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
+  const prefetchedRef = useRef(false);
+
+  // Prefetch quiz data on mount so it's ready when user clicks
+  useEffect(() => {
+    if (isLocked || prefetchedRef.current) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Single query: quiz + first 3 questions via nested select
+        const { data, error } = await supabase
+          .from("quizzes")
+          .select("id, quiz_questions(*)")
+          .eq("card_id", card.id)
+          .order("sort_order", {
+            ascending: true,
+            referencedTable: "quiz_questions",
+          })
+          .limit(PREVIEW_LIMIT, { referencedTable: "quiz_questions" })
+          .single();
+
+        if (cancelled || error || !data) return;
+
+        const fetched = (data as any).quiz_questions as QuizQuestion[];
+        if (!fetched || fetched.length === 0) return;
+
+        // Count total questions in parallel (non-blocking)
+        supabase
+          .from("quiz_questions")
+          .select("*", { count: "exact", head: true })
+          .eq("quiz_id", data.id)
+          .then(({ count }) => {
+            if (!cancelled) setTotalQuestions(count ?? fetched.length);
+          });
+
+        if (!cancelled) {
+          setQuestions(fetched);
+          prefetchedRef.current = true;
+        }
+      } catch {
+        // Prefetch failed silently — will fetch on click as fallback
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [card.id, isLocked, supabase]);
 
   const handleStartPreview = async () => {
     if (isLocked) return;
 
+    // Data already prefetched — instant transition
+    if (prefetchedRef.current && questions.length > 0) {
+      setCurrentQuestion(0);
+      setSelectedAnswer(null);
+      setScore(0);
+      setPhase("playing");
+      return;
+    }
+
+    // Fallback: fetch on click (prefetch didn't finish yet)
     setPhase("loading");
 
     try {
-      // 1. Get the quiz row for this card
-      const { data: quizData, error: quizErr } = await supabase
+      const { data, error } = await supabase
         .from("quizzes")
-        .select("id")
+        .select("id, quiz_questions(*)")
         .eq("card_id", card.id)
+        .order("sort_order", {
+          ascending: true,
+          referencedTable: "quiz_questions",
+        })
+        .limit(PREVIEW_LIMIT, { referencedTable: "quiz_questions" })
         .single();
 
-      if (quizErr || !quizData) throw new Error("Quiz not found");
+      if (error || !data) throw new Error("Quiz not found");
 
-      // 2. Get total question count
+      const fetched = (data as any).quiz_questions as QuizQuestion[];
+      if (!fetched || fetched.length === 0) throw new Error("No questions");
+
       const { count } = await supabase
         .from("quiz_questions")
         .select("*", { count: "exact", head: true })
-        .eq("quiz_id", quizData.id);
+        .eq("quiz_id", data.id);
 
-      setTotalQuestions(count ?? 0);
-
-      // 3. Get the first N preview questions
-      const { data: questionsData, error: qErr } = await supabase
-        .from("quiz_questions")
-        .select("*")
-        .eq("quiz_id", quizData.id)
-        .order("sort_order", { ascending: true })
-        .limit(PREVIEW_LIMIT);
-
-      if (qErr || !questionsData || questionsData.length === 0) {
-        throw new Error("No questions");
-      }
-
-      setQuestions(questionsData);
+      setTotalQuestions(count ?? fetched.length);
+      setQuestions(fetched);
       setCurrentQuestion(0);
       setSelectedAnswer(null);
       setScore(0);
       setPhase("playing");
     } catch {
-      // Fallback: navigate to full quiz page
       router.push(`/quiz/${card.id}`);
     }
   };
