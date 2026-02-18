@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { BarChart3, User, FileText, Smile, Loader2, ListTodo, Trophy } from "lucide-react";
+import { BarChart3, User, FileText, Smile, Loader2, ListTodo, Trophy, Box, Music } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface DashboardStats {
@@ -13,6 +13,8 @@ interface DashboardStats {
     totalInteractions: number;
     totalTasks: number;
     totalLevels: number;
+    totalARAssets: number;
+    totalARMusic: number;
 }
 
 interface RecentActivity {
@@ -31,6 +33,8 @@ export default function AdminDashboard() {
         totalInteractions: 0,
         totalTasks: 0,
         totalLevels: 0,
+        totalARAssets: 0,
+        totalARMusic: 0,
     });
     const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
     const router = useRouter();
@@ -43,13 +47,15 @@ export default function AdminDashboard() {
     const fetchDashboardData = async () => {
         try {
             // Fetch stats in parallel
-            const [usersResult, cardsResult, moodsResult, interactionsResult, tasksResult, levelsResult, recentUsersResult] = await Promise.all([
+            const [usersResult, cardsResult, moodsResult, interactionsResult, tasksResult, levelsResult, arAssetsResult, arMusicResult, recentUsersResult] = await Promise.all([
                 supabase.from("profiles").select("*", { count: "exact", head: true }),
                 supabase.from("cards").select("*", { count: "exact", head: true }).eq("is_active", true),
                 supabase.from("moods").select("*", { count: "exact", head: true }),
                 supabase.from("card_interactions").select("*", { count: "estimated", head: true }),
                 supabase.from("tasks").select("*", { count: "exact", head: true }),
                 supabase.from("levels").select("*", { count: "exact", head: true }),
+                supabase.from("ar_assets").select("*", { count: "exact", head: true }).eq("is_active", true),
+                supabase.from("ar_world_music").select("*", { count: "exact", head: true }).eq("is_active", true),
                 supabase.from("profiles").select("username, created_at").order("created_at", { ascending: false }).limit(5),
             ]);
 
@@ -60,6 +66,8 @@ export default function AdminDashboard() {
                 totalInteractions: interactionsResult.count || 0,
                 totalTasks: tasksResult.count || 0,
                 totalLevels: levelsResult.count || 0,
+                totalARAssets: arAssetsResult.count || 0,
+                totalARMusic: arMusicResult.count || 0,
             });
 
             // Format recent activity
@@ -95,6 +103,12 @@ export default function AdminDashboard() {
             case "users":
                 router.push("/admin/users");
                 break;
+            case "ar-assets":
+                router.push("/admin/ar-assets");
+                break;
+            case "ar-music":
+                router.push("/admin/ar-music");
+                break;
         }
     };
 
@@ -119,7 +133,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-6">
                 <StatCard
                     title="Total Users"
                     value={stats.totalUsers.toLocaleString()}
@@ -149,6 +163,18 @@ export default function AdminDashboard() {
                     value={stats.totalLevels.toString()}
                     icon={Trophy}
                     color="text-amber-400"
+                />
+                <StatCard
+                    title="AR Assets"
+                    value={stats.totalARAssets.toString()}
+                    icon={Box}
+                    color="text-cyan-400"
+                />
+                <StatCard
+                    title="AR Music"
+                    value={stats.totalARMusic.toString()}
+                    icon={Music}
+                    color="text-indigo-400"
                 />
             </div>
 
@@ -211,8 +237,22 @@ export default function AdminDashboard() {
                             <span className="text-sm font-medium block text-[var(--foreground)]">Manage Levels</span>
                         </button>
                         <button
-                            onClick={() => handleQuickAction("users")}
+                            onClick={() => handleQuickAction("ar-assets")}
                             className="p-4 rounded-xl bg-[var(--secondary)] hover:bg-[var(--primary)]/20 transition-all border border-[var(--border)] text-left group"
+                        >
+                            <Box className="w-6 h-6 mb-2 text-[var(--muted-foreground)] group-hover:text-[var(--accent)]" />
+                            <span className="text-sm font-medium block text-[var(--foreground)]">AR Assets</span>
+                        </button>
+                        <button
+                            onClick={() => handleQuickAction("ar-music")}
+                            className="p-4 rounded-xl bg-[var(--secondary)] hover:bg-[var(--primary)]/20 transition-all border border-[var(--border)] text-left group"
+                        >
+                            <Music className="w-6 h-6 mb-2 text-[var(--muted-foreground)] group-hover:text-[var(--accent)]" />
+                            <span className="text-sm font-medium block text-[var(--foreground)]">AR Music</span>
+                        </button>
+                        <button
+                            onClick={() => handleQuickAction("users")}
+                            className="p-4 rounded-xl bg-[var(--secondary)] hover:bg-[var(--primary)]/20 transition-all border border-[var(--border)] text-left group col-span-2"
                         >
                             <User className="w-6 h-6 mb-2 text-[var(--muted-foreground)] group-hover:text-[var(--accent)]" />
                             <span className="text-sm font-medium block text-[var(--foreground)]">Manage Users</span>

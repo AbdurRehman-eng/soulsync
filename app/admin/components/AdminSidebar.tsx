@@ -18,6 +18,8 @@ import {
     Pause,
     Shuffle,
     HelpCircle,
+    Box,
+    Music,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -33,6 +35,8 @@ const navItems = [
     { href: "/admin/feed-patterns", icon: Shuffle, label: "Feed Patterns" },
     { href: "/admin/pause-cards", icon: Pause, label: "Pause Cards" },
     { href: "/admin/daily-quiz", icon: HelpCircle, label: "Daily Quiz" },
+    { href: "/admin/ar-assets", icon: Box, label: "AR Assets" },
+    { href: "/admin/ar-music", icon: Music, label: "AR Music" },
     { href: "/admin/users", icon: Users, label: "Users" },
     { href: "/admin/settings", icon: Settings, label: "Settings" },
     { href: "/admin/manual", icon: BookOpen, label: "Manual" },
