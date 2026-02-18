@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { ARAsset, ARWorldMusic } from "@/types";
-import { Camera, Volume2, VolumeX, XCircle } from "lucide-react";
+import { Camera, Volume2, VolumeX, XCircle, MousePointer2, Move } from "lucide-react";
 
 interface ARWorldViewerProps {
   assets: ARAsset[];
@@ -20,6 +21,7 @@ export function ARWorldViewer({ assets, music, onClose }: ARWorldViewerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const modelsRef = useRef<THREE.Object3D[]>([]);
+  const controlsRef = useRef<OrbitControls | null>(null);
 
   const [isARSupported, setIsARSupported] = useState(false);
   const [cameraPermission, setCameraPermission] = useState<"prompt" | "granted" | "denied">("prompt");
@@ -27,18 +29,22 @@ export function ARWorldViewer({ assets, music, onClose }: ARWorldViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [loadedModels, setLoadedModels] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
+    // Check if desktop (no touch support or large screen)
+    const desktop = !('ontouchstart' in window) || window.innerWidth > 1024;
+    setIsDesktop(desktop);
+
     // Check for WebXR support
     if ("xr" in navigator) {
       (navigator as any).xr?.isSessionSupported("immersive-ar").then((supported: boolean) => {
         setIsARSupported(supported);
-        if (!supported) {
-          setError("AR is not supported on this device. Showing 3D preview instead.");
-        }
+      }).catch(() => {
+        setIsARSupported(false);
       });
     } else {
-      setError("WebXR is not supported on this browser. Showing 3D preview instead.");
+      setIsARSupported(false);
     }
   }, []);
 
@@ -97,9 +103,12 @@ export function ARWorldViewer({ assets, music, onClose }: ARWorldViewerProps) {
       .slice(0, Math.min(5, assets.length));
 
     selectedAssets.forEach((asset, index) => {
+      console.log(`[AR World] Loading model: ${asset.name} from ${asset.model_url}`);
+
       loader.load(
         asset.model_url,
         (gltf) => {
+          console.log(`[AR World] ✓ Successfully loaded: ${asset.name}`);
           const model = gltf.scene;
           model.scale.set(asset.scale, asset.scale, asset.scale);
 
@@ -129,8 +138,18 @@ export function ARWorldViewer({ assets, music, onClose }: ARWorldViewerProps) {
           }
         },
         undefined,
-        (error) => {
-          console.error(`Failed to load model ${asset.name}:`, error);
+        (loadError) => {
+          console.error(`[AR World] ✗ Failed to load model ${asset.name}:`, loadError);
+          console.error(`[AR World] Model URL: ${asset.model_url}`);
+          console.error(`[AR World] This usually means:
+  1. Storage bucket 'ar-assets' doesn't exist
+  2. Storage bucket is not public
+  3. Storage policies are not set up
+  4. File was not uploaded correctly
+
+See: ${window.location.origin}/SETUP_AR_STORAGE.md for setup instructions`);
+
+          setError(`Failed to load 3D model: ${asset.name}. Check Storage bucket setup.`);
           modelsLoaded++;
           setLoadedModels(modelsLoaded);
 
@@ -146,9 +165,24 @@ export function ARWorldViewer({ assets, music, onClose }: ARWorldViewerProps) {
       setIsLoading(false);
     }
 
+    // Add OrbitControls for desktop users
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 1;
+    controls.maxDistance = 10;
+    controls.maxPolarAngle = Math.PI / 1.5; // Prevent going under ground
+    controls.target.set(0, 0.5, 0); // Look at center, slightly up
+    controlsRef.current = controls;
+
     // Animation loop
     function animate() {
       animationFrameRef.current = requestAnimationFrame(animate);
+
+      // Update controls
+      if (controls) {
+        controls.update();
+      }
 
       // Gentle rotation animation for models
       modelsRef.current.forEach((model, index) => {
@@ -177,6 +211,9 @@ export function ARWorldViewer({ assets, music, onClose }: ARWorldViewerProps) {
       window.removeEventListener("resize", handleResize);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (controlsRef.current) {
+        controlsRef.current.dispose();
       }
       if (renderer) {
         renderer.dispose();
@@ -264,10 +301,27 @@ export function ARWorldViewer({ assets, music, onClose }: ARWorldViewerProps) {
         </div>
       )}
 
+      {/* Desktop mode notice */}
+      {isDesktop && !isARSupported && !isLoading && !error && (
+        <div className="absolute top-4 left-4 right-4 bg-blue-500/90 backdrop-blur-sm text-white px-4 py-3 rounded-lg text-sm max-w-md mx-auto">
+          <div className="flex items-center gap-2 mb-1">
+            <MousePointer2 size={16} />
+            <p className="font-semibold">Desktop 3D Preview Mode</p>
+          </div>
+          <p className="text-xs opacity-90">
+            AR mode requires a mobile device. Use mouse to rotate view, scroll to zoom.
+          </p>
+        </div>
+      )}
+
       {/* Error message */}
-      {error && (
-        <div className="absolute top-4 left-4 right-4 bg-yellow-500/90 text-white px-4 py-2 rounded-lg text-sm">
-          {error}
+      {error && !isLoading && (
+        <div className="absolute top-4 left-4 right-4 bg-red-500/90 backdrop-blur-sm text-white px-4 py-3 rounded-lg text-sm max-w-md mx-auto z-10">
+          <p className="font-semibold mb-1">⚠️ Loading Error</p>
+          <p className="text-xs opacity-90 mb-2">{error}</p>
+          <p className="text-xs opacity-75">
+            Open browser console (F12) for details or check <a href="/SETUP_AR_STORAGE.md" target="_blank" className="underline">setup guide</a>
+          </p>
         </div>
       )}
 
@@ -305,8 +359,8 @@ export function ARWorldViewer({ assets, music, onClose }: ARWorldViewerProps) {
         )}
       </div>
 
-      {/* Instructions */}
-      {!isLoading && (
+      {/* Mobile AR Instructions */}
+      {!isLoading && !isDesktop && (
         <div className="absolute top-4 left-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm max-w-md mx-auto">
           <p className="font-semibold mb-0.5 sm:mb-1">AR World Experience</p>
           <p className="text-[10px] sm:text-xs opacity-90 leading-relaxed">
