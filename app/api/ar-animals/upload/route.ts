@@ -101,8 +101,9 @@ export async function POST(request: NextRequest) {
 
     // Upload thumbnail if provided
     let thumbnailUrl = null;
+    let thumbnailFileName = null;
     if (thumbnailFile) {
-      const thumbnailFileName = `ar-assets/thumbnails/${Date.now()}-${thumbnailFile.name}`;
+      thumbnailFileName = `ar-assets/thumbnails/${Date.now()}-${thumbnailFile.name}`;
       const thumbnailBuffer = await thumbnailFile.arrayBuffer();
 
       const { data: thumbnailData, error: thumbnailError } = await supabase.storage
