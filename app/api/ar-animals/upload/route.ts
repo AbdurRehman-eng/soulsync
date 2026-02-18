@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
       console.error("Database error:", dbError);
       // Clean up uploaded files
       await supabase.storage.from("ar-assets").remove([modelFileName]);
-      if (thumbnailUrl) {
+      if (thumbnailFileName) {
         await supabase.storage.from("ar-assets").remove([thumbnailFileName]);
       }
       return NextResponse.json(
