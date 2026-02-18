@@ -116,8 +116,8 @@ export default function ARWorldPage() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black">
-      {/* AR World Viewer */}
+    <div className="fixed inset-0 bg-black z-[9999]">
+      {/* AR World Viewer - z-[9999] to overlay Header and BottomNav */}
       <Suspense
         fallback={
           <div className="flex items-center justify-center h-screen">
