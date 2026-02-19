@@ -32,7 +32,7 @@ const sizeClasses = {
 
 // Map states to mascot images
 const stateToImage: Record<MascotState, string> = {
-  idle: "/mascot/mascot-idle.png",
+  idle: "/mascot/blinking.gif",
   "power-up": "/mascot/mascot-talking.png",
   happy: "/mascot/mascot-happy.png",
   thinking: "/mascot/mascot-thinking.png",
@@ -238,6 +238,7 @@ export function Mascot({
             src={mascotImage}
             alt="Soul Sync Mascot"
             fill
+            unoptimized={mascotImage.endsWith(".gif")}
             className={cn(
               "object-contain drop-shadow-2xl transition-all duration-300",
               state === "celebrate" && "drop-shadow-[0_0_20px_rgba(255,215,0,0.5)]",
