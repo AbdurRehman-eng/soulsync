@@ -106,6 +106,35 @@ export async function GET(
       }
     }
 
+    // Embed quiz data into quiz cards
+    const quizCards = cards.filter((c: any) => c.type === "quiz");
+    if (quizCards.length > 0) {
+      const { data: quizRows } = await supabase
+        .from("quizzes")
+        .select("id, card_id, quiz_questions(*)")
+        .in("card_id", quizCards.map((c: any) => c.id))
+        .order("sort_order", { ascending: true, referencedTable: "quiz_questions" });
+
+      if (quizRows) {
+        const quizMap = new Map<string, any>();
+        for (const q of quizRows) {
+          quizMap.set(q.card_id, q);
+        }
+        for (const card of cards) {
+          if (card.type === "quiz") {
+            const qData = quizMap.get(card.id);
+            if (qData && qData.quiz_questions?.length > 0) {
+              card.quiz_data = {
+                quiz_id: qData.id,
+                questions: qData.quiz_questions,
+                total_questions: qData.quiz_questions.length,
+              };
+            }
+          }
+        }
+      }
+    }
+
     return NextResponse.json({
       category,
       cards,

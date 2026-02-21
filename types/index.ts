@@ -110,6 +110,12 @@ export interface Card {
   // Relations
   moods?: CardMood[];
   category?: ContentCategory;
+  // Embedded quiz data (loaded server-side in feed API)
+  quiz_data?: {
+    quiz_id: string;
+    questions: QuizQuestion[];
+    total_questions: number;
+  };
 }
 
 export interface CardContent {

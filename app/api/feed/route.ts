@@ -191,6 +191,35 @@ export async function GET(request: NextRequest) {
           (card) => card.type !== "quiz" || validQuizIds.has(card.id)
         );
 
+        // Embed quiz data into cached quiz cards
+        const cachedQuizCards = cards.filter((c) => c.type === "quiz");
+        if (cachedQuizCards.length > 0) {
+          const { data: quizRows } = await supabase
+            .from("quizzes")
+            .select("id, card_id, quiz_questions(*)")
+            .in("card_id", cachedQuizCards.map((c) => c.id))
+            .order("sort_order", { ascending: true, referencedTable: "quiz_questions" });
+
+          if (quizRows) {
+            const quizMap = new Map<string, any>();
+            for (const q of quizRows) {
+              quizMap.set(q.card_id, q);
+            }
+            for (const card of cards) {
+              if (card.type === "quiz") {
+                const qData = quizMap.get(card.id);
+                if (qData && qData.quiz_questions?.length > 0) {
+                  card.quiz_data = {
+                    quiz_id: qData.id,
+                    questions: qData.quiz_questions,
+                    total_questions: qData.quiz_questions.length,
+                  };
+                }
+              }
+            }
+          }
+        }
+
         // Log mood asynchronously
         if (moodId) {
           Promise.all([
@@ -317,8 +346,9 @@ export async function GET(request: NextRequest) {
     const upgradeCards = upgradeResult.data || [];
 
     // Build set of card IDs that have actual quiz data with questions
+    const quizDataRaw = quizCardIdsWithDataResult.data || [];
     const quizCardIdsWithData = new Set(
-      (quizCardIdsWithDataResult.data || [])
+      quizDataRaw
         .filter((q: any) => q.quiz_questions && q.quiz_questions.length > 0)
         .map((q: any) => q.card_id as string)
     );
@@ -655,6 +685,37 @@ export async function GET(request: NextRequest) {
       seen.add(card.id);
       return true;
     });
+
+    // ============================================
+    // Embed quiz data into quiz cards
+    // ============================================
+    const quizCardsInFeed = deduped.filter((c) => c.type === "quiz");
+    if (quizCardsInFeed.length > 0) {
+      const { data: quizRows } = await supabase
+        .from("quizzes")
+        .select("id, card_id, quiz_questions(*)")
+        .in("card_id", quizCardsInFeed.map((c) => c.id))
+        .order("sort_order", { ascending: true, referencedTable: "quiz_questions" });
+
+      if (quizRows) {
+        const quizMap = new Map<string, any>();
+        for (const q of quizRows) {
+          quizMap.set(q.card_id, q);
+        }
+        for (const card of deduped) {
+          if (card.type === "quiz") {
+            const qData = quizMap.get(card.id);
+            if (qData && qData.quiz_questions?.length > 0) {
+              card.quiz_data = {
+                quiz_id: qData.id,
+                questions: qData.quiz_questions,
+                total_questions: qData.quiz_questions.length,
+              };
+            }
+          }
+        }
+      }
+    }
 
     // ============================================
     // Track seen content + cache feed (async, non-blocking)

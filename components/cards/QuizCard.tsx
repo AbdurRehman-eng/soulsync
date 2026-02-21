@@ -80,9 +80,20 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
     }
   }, [phase, currentQuestion, selectedAnswer]);
 
-  // Prefetch quiz data on mount so it's ready when user clicks
+  // Use server-embedded quiz data if available, otherwise prefetch client-side
   useEffect(() => {
     if (isLocked || prefetchedRef.current) return;
+
+    // Use pre-loaded quiz data from feed API (no client-side fetch needed)
+    if (card.quiz_data && card.quiz_data.questions.length > 0) {
+      const preview = card.quiz_data.questions.slice(0, PREVIEW_LIMIT);
+      setQuestions(preview);
+      setTotalQuestions(card.quiz_data.total_questions);
+      prefetchedRef.current = true;
+      return;
+    }
+
+    // Fallback: prefetch client-side if quiz_data wasn't embedded
     let cancelled = false;
 
     (async () => {
@@ -96,12 +107,23 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
             referencedTable: "quiz_questions",
           })
           .limit(PREVIEW_LIMIT, { referencedTable: "quiz_questions" })
-          .single();
+          .maybeSingle();
 
-        if (cancelled || error || !data) return;
+        if (cancelled) return;
+        if (error) {
+          console.warn("[QuizCard] Prefetch error:", error.message, error.code);
+          return;
+        }
+        if (!data) {
+          console.warn("[QuizCard] No quiz found for card_id:", card.id);
+          return;
+        }
 
         const fetched = (data as any).quiz_questions as QuizQuestion[];
-        if (!fetched || fetched.length === 0) return;
+        if (!fetched || fetched.length === 0) {
+          console.warn("[QuizCard] Quiz has no questions, quiz_id:", data.id);
+          return;
+        }
 
         supabase
           .from("quiz_questions")
@@ -115,15 +137,15 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
           setQuestions(fetched);
           prefetchedRef.current = true;
         }
-      } catch {
-        // Prefetch failed silently
+      } catch (err) {
+        console.warn("[QuizCard] Prefetch exception:", err);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [card.id, isLocked, supabase]);
+  }, [card.id, card.quiz_data, isLocked, supabase]);
 
   const [loadError, setLoadError] = useState(false);
   const cancelledRef = useRef(false);
@@ -146,9 +168,9 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
     const TIMEOUT = 10_000;
     const timeoutError = Symbol("timeout");
 
-    const withTimeout = <T,>(promise: Promise<T>): Promise<T> =>
+    const withTimeout = <T,>(promise: PromiseLike<T>): Promise<T> =>
       Promise.race([
-        promise,
+        Promise.resolve(promise),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(timeoutError), TIMEOUT)
         ),
@@ -165,14 +187,26 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
             referencedTable: "quiz_questions",
           })
           .limit(PREVIEW_LIMIT, { referencedTable: "quiz_questions" })
-          .single()
+          .maybeSingle()
       );
 
       if (cancelledRef.current) return;
-      if (error || !data) throw new Error("Quiz not found");
+
+      if (error) {
+        console.error("[QuizCard] Load error:", error.message, error.code, "card_id:", card.id);
+        throw new Error(`Quiz load failed: ${error.message}`);
+      }
+
+      if (!data) {
+        console.error("[QuizCard] No quiz found for card_id:", card.id);
+        throw new Error("No quiz found for this card");
+      }
 
       const fetched = (data as any).quiz_questions as QuizQuestion[];
-      if (!fetched || fetched.length === 0) throw new Error("No questions");
+      if (!fetched || fetched.length === 0) {
+        console.error("[QuizCard] Quiz has no questions, quiz_id:", data.id);
+        throw new Error("No questions available");
+      }
 
       const { count } = await withTimeout(
         supabase
@@ -192,10 +226,11 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
     } catch (err) {
       if (cancelledRef.current) return;
       if (err === timeoutError) {
-        setLoadError(true);
+        console.error("[QuizCard] Query timed out after", TIMEOUT, "ms for card_id:", card.id);
       } else {
-        setLoadError(true);
+        console.error("[QuizCard] Failed to load quiz:", err);
       }
+      setLoadError(true);
     }
   };
 
