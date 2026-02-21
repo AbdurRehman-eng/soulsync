@@ -68,6 +68,7 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
   useEffect(() => {
     return () => {
       if (mascotTimerRef.current) clearTimeout(mascotTimerRef.current);
+      cancelledRef.current = true;
     };
   }, []);
 
@@ -124,6 +125,9 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
     };
   }, [card.id, isLocked, supabase]);
 
+  const [loadError, setLoadError] = useState(false);
+  const cancelledRef = useRef(false);
+
   const handleStartPreview = async () => {
     if (isLocked) return;
 
@@ -136,28 +140,48 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
     }
 
     setPhase("loading");
+    setLoadError(false);
+    cancelledRef.current = false;
+
+    const TIMEOUT = 10_000;
+    const timeoutError = Symbol("timeout");
+
+    const withTimeout = <T,>(promise: Promise<T>): Promise<T> =>
+      Promise.race([
+        promise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(timeoutError), TIMEOUT)
+        ),
+      ]);
 
     try {
-      const { data, error } = await supabase
-        .from("quizzes")
-        .select("id, quiz_questions(*)")
-        .eq("card_id", card.id)
-        .order("sort_order", {
-          ascending: true,
-          referencedTable: "quiz_questions",
-        })
-        .limit(PREVIEW_LIMIT, { referencedTable: "quiz_questions" })
-        .single();
+      const { data, error } = await withTimeout(
+        supabase
+          .from("quizzes")
+          .select("id, quiz_questions(*)")
+          .eq("card_id", card.id)
+          .order("sort_order", {
+            ascending: true,
+            referencedTable: "quiz_questions",
+          })
+          .limit(PREVIEW_LIMIT, { referencedTable: "quiz_questions" })
+          .single()
+      );
 
+      if (cancelledRef.current) return;
       if (error || !data) throw new Error("Quiz not found");
 
       const fetched = (data as any).quiz_questions as QuizQuestion[];
       if (!fetched || fetched.length === 0) throw new Error("No questions");
 
-      const { count } = await supabase
-        .from("quiz_questions")
-        .select("*", { count: "exact", head: true })
-        .eq("quiz_id", data.id);
+      const { count } = await withTimeout(
+        supabase
+          .from("quiz_questions")
+          .select("*", { count: "exact", head: true })
+          .eq("quiz_id", data.id)
+      );
+
+      if (cancelledRef.current) return;
 
       setTotalQuestions(count ?? fetched.length);
       setQuestions(fetched);
@@ -165,8 +189,13 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
       setSelectedAnswer(null);
       setScore(0);
       setPhase("playing");
-    } catch {
-      router.push(`/quiz/${card.id}`);
+    } catch (err) {
+      if (cancelledRef.current) return;
+      if (err === timeoutError) {
+        setLoadError(true);
+      } else {
+        setLoadError(true);
+      }
     }
   };
 
@@ -229,8 +258,47 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
             Quiz
           </span>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center gap-3">
-          <Mascot state="thinking" size="sm" showSpeechBubble speechText="Loading..." />
+        <div className="flex-1 flex flex-col items-center justify-center gap-2">
+          {loadError ? (
+            <>
+              <Mascot state="sad" size="md" />
+              <p className="text-xs sm:text-sm text-muted-foreground font-medium">
+                Couldn't load the quiz...
+              </p>
+              <div className="flex gap-2 mt-1">
+                <button
+                  onClick={handleStartPreview}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-purple-500/20 text-purple-500 text-xs font-medium hover:bg-purple-500/30 transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Retry
+                </button>
+                <button
+                  onClick={() => { setPhase("preview"); setLoadError(false); }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-muted text-muted-foreground text-xs font-medium hover:bg-muted/80 transition-colors"
+                >
+                  Back
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Mascot state="thinking" size="md" />
+              <p className="text-xs sm:text-sm text-muted-foreground font-medium">
+                Loading...
+              </p>
+              <button
+                onClick={() => {
+                  cancelledRef.current = true;
+                  setPhase("preview");
+                  setLoadError(false);
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+            </>
+          )}
         </div>
       </div>
     );

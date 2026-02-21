@@ -34,12 +34,12 @@ const sizeClasses = {
 const stateToImage: Record<MascotState, string> = {
   idle: "/mascot/blinking.gif",
   "power-up": "/mascot/mascot-talking.png",
-  happy: "/mascot/mascot-happy.png",
-  thinking: "/mascot/mascot-thinking.png",
+  happy: "/mascot/jump-celebrations.gif",
+  thinking: "/mascot/thinking-loading.gif",
   talking: "/mascot/mascot-talking.png",
-  sad: "/mascot/mascot-thinking.png",
-  celebrate: "/mascot/mascot-happy.png",
-  wrong: "/mascot/mascot-thinking.png",
+  sad: "/mascot/sad-disappointed.gif",
+  celebrate: "/mascot/jump-celebrations.gif",
+  wrong: "/mascot/sad-disappointed.gif",
 };
 
 // Sparkle colors for celebrate state
@@ -172,21 +172,42 @@ export function Mascot({
       {/* Mascot Container */}
       <div className={cn("relative", sizeClasses[size])}>
         {/* Energy glow — active states */}
-        {(state === "power-up" || state === "happy" || state === "celebrate") && (
+        {state === "power-up" && (
           <motion.div
             className="absolute inset-0 rounded-full"
             style={{
-              background:
-                state === "celebrate"
-                  ? "radial-gradient(circle, #FFD700 0%, transparent 70%)"
-                  : "radial-gradient(circle, var(--primary) 0%, transparent 70%)",
+              background: "radial-gradient(circle, var(--primary) 0%, transparent 70%)",
               filter: "blur(16px)",
             }}
-            animate={{
-              opacity: state === "celebrate" ? [0.3, 0.7, 0.3] : [0.2, 0.45, 0.2],
-            }}
-            transition={{ duration: state === "celebrate" ? 0.4 : 2, repeat: Infinity, ease: "easeInOut" }}
+            animate={{ opacity: [0.2, 0.45, 0.2] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
           />
+        )}
+
+        {/* Shiny radial glow for happy/celebrate — lit-up feel */}
+        {(state === "happy" || state === "celebrate") && (
+          <>
+            {/* Outer soft glow */}
+            <motion.div
+              className="absolute -inset-3 sm:-inset-4 rounded-full"
+              style={{
+                background: "radial-gradient(circle, rgba(255,215,0,0.25) 0%, rgba(255,165,0,0.1) 40%, transparent 70%)",
+                filter: "blur(12px)",
+              }}
+              animate={{ opacity: [0.5, 0.9, 0.5], scale: [0.95, 1.05, 0.95] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+            />
+            {/* Inner bright core */}
+            <motion.div
+              className="absolute -inset-1 sm:-inset-2 rounded-full"
+              style={{
+                background: "radial-gradient(circle, rgba(255,220,50,0.4) 0%, rgba(255,180,0,0.15) 50%, transparent 75%)",
+                filter: "blur(8px)",
+              }}
+              animate={{ opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+            />
+          </>
         )}
 
         {/* Wrong answer red flash */}
