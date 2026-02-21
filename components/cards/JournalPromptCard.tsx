@@ -41,52 +41,54 @@ export function JournalPromptCard({ card, isLocked }: JournalPromptCardProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-center overflow-visible">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="p-1.5 rounded-lg bg-indigo-500/20">
-          <span className="text-base sm:text-lg">✨</span>
+    <div className="min-h-full flex flex-col overflow-hidden">
+      <div className="flex items-center gap-2 mb-1.5 flex-shrink-0">
+        <div className="p-1 rounded-lg bg-indigo-500/20">
+          <span className="text-sm">✨</span>
         </div>
         <span className="text-xs font-medium text-indigo-400">Reflection</span>
       </div>
 
-      <h3 className="text-sm sm:text-base font-bold mb-1.5">{card.title || "Time to Reflect"}</h3>
+      <h3 className="text-sm font-bold mb-1 flex-shrink-0">{card.title || "Time to Reflect"}</h3>
 
-      <div className="glass-card p-3 rounded-xl mb-2">
-        <p className="text-xs sm:text-sm leading-relaxed italic text-muted-foreground">
-          {content.journal_prompt_text || content.prompt || "What's on your mind today?"}
-        </p>
-      </div>
-
-      {!submitted ? (
-        <>
-          <textarea
-            value={journalText}
-            onChange={(e) => setJournalText(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            placeholder="Start writing your thoughts..."
-            className="w-full h-16 px-3 py-2 rounded-xl bg-black/30 border border-[var(--border)] text-xs sm:text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-white placeholder-white/40"
-          />
-          <button
-            onClick={handleSubmit}
-            disabled={saving || !journalText.trim()}
-            className="mt-2 self-center px-5 py-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs sm:text-sm font-semibold disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save Reflection"}
-          </button>
-        </>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center py-4"
-        >
-          <span className="text-3xl mb-2 block">🌟</span>
-          <p className="text-sm font-medium text-accent">Reflection saved!</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Keep reflecting, keep growing.
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto scrollbar-hide">
+        <div className="glass-card p-2.5 rounded-xl mb-2">
+          <p className="text-[11px] sm:text-xs leading-relaxed italic text-muted-foreground">
+            {content.journal_prompt_text || content.prompt || "What's on your mind today?"}
           </p>
-        </motion.div>
-      )}
+        </div>
+
+        {!submitted ? (
+          <div className="flex flex-col flex-shrink-0">
+            <textarea
+              value={journalText}
+              onChange={(e) => setJournalText(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              placeholder="Start writing your thoughts..."
+              className="w-full h-14 px-2.5 py-1.5 rounded-xl bg-black/30 border border-[var(--border)] text-xs resize-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-white placeholder-white/40"
+            />
+            <button
+              onClick={handleSubmit}
+              disabled={saving || !journalText.trim()}
+              className="mt-1.5 self-center px-4 py-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-[11px] font-semibold disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save Reflection"}
+            </button>
+          </div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center py-3"
+          >
+            <span className="text-2xl mb-1.5 block">🌟</span>
+            <p className="text-xs font-medium text-accent">Reflection saved!</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Keep reflecting, keep growing.
+            </p>
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 }
