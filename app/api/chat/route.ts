@@ -48,9 +48,9 @@ When users seem to be in distress, always prioritize their safety and well-being
 
 // Model names to try in order of preference
 const MODEL_CANDIDATES = [
+  "gemini-2.5-flash",
   "gemini-2.0-flash",
   "gemini-1.5-flash",
-  "gemini-1.5-pro",
 ];
 
 async function getWorkingModel(genAI: GoogleGenerativeAI) {
