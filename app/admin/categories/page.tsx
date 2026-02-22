@@ -39,14 +39,15 @@ export default function CategoriesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this category?")) return;
+    const cat = categories.find((c) => c.id === id);
+    if (!confirm(`Are you sure you want to delete the category "${cat?.display_name || ""}"?`)) return;
     try {
       const { error } = await supabase.from("content_categories").delete().eq("id", id);
       if (error) throw error;
-      toast.success("Category deleted");
+      toast.success(`Category "${cat?.display_name}" deleted successfully`);
       setCategories((prev) => prev.filter((c) => c.id !== id));
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete category");
+      toast.error(error.message || `Failed to delete category "${cat?.display_name}"`);
     }
   };
 
@@ -291,11 +292,11 @@ function CategoryFormModal({
           .update(data)
           .eq("id", category.id);
         if (error) throw error;
-        toast.success("Category updated");
+        toast.success(`Category "${displayName.trim()}" updated successfully`);
       } else {
         const { error } = await supabase.from("content_categories").insert(data);
         if (error) throw error;
-        toast.success("Category created");
+        toast.success(`Category "${displayName.trim()}" created successfully`);
       }
 
       onSuccess();

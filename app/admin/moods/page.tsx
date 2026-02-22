@@ -36,15 +36,16 @@ export default function MoodsPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Are you sure you want to delete this mood?")) return;
+        const mood = moods.find((m) => m.id === id);
+        if (!confirm(`Are you sure you want to delete the mood "${mood?.name || ""}"?`)) return;
 
         try {
             const { error } = await supabase.from("moods").delete().eq("id", id);
             if (error) throw error;
-            toast.success("Mood deleted");
+            toast.success(`Mood "${mood?.name}" deleted successfully`);
             fetchMoods();
         } catch (error) {
-            toast.error("Failed to delete mood");
+            toast.error(`Failed to delete mood "${mood?.name}"`);
         }
     };
 

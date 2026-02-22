@@ -54,13 +54,13 @@ export function LevelFormModal({ level, onClose, onSuccess }: LevelFormModalProp
           .eq("id", level.id);
 
         if (error) throw error;
-        toast.success("Level updated successfully");
+        toast.success(`Level "${formData.name}" updated successfully`);
       } else {
         // Create new level
         const { error } = await supabase.from("levels").insert([payload]);
 
         if (error) throw error;
-        toast.success("Level created successfully");
+        toast.success(`Level "${formData.name}" created successfully`);
       }
 
       onSuccess();

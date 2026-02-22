@@ -153,7 +153,7 @@ export default function PauseCardsPage() {
                     .eq("id", editingCard.id);
                 if (error) throw error;
                 savedCardId = editingCard.id;
-                toast.success("Pause card updated");
+                toast.success(`Pause card "${title}" updated successfully`);
             } else {
                 const { data: inserted, error } = await supabase
                     .from("cards")
@@ -162,7 +162,7 @@ export default function PauseCardsPage() {
                     .single();
                 if (error) throw error;
                 savedCardId = inserted.id;
-                toast.success("Pause card created");
+                toast.success(`Pause card "${title}" created successfully`);
             }
 
             // If setting as default, unset other defaults in cards table
@@ -191,20 +191,22 @@ export default function PauseCardsPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Delete this pause card?")) return;
+        const card = pauseCards.find((c) => c.id === id);
+        if (!confirm(`Delete pause card "${card?.title || ""}"?`)) return;
         try {
             // Remove from pause_cards first (FK constraint)
             await supabase.from("pause_cards").delete().eq("card_id", id);
             const { error } = await supabase.from("cards").delete().eq("id", id);
             if (error) throw error;
-            toast.success("Deleted");
+            toast.success(`Pause card "${card?.title}" deleted successfully`);
             fetchPauseCards();
         } catch {
-            toast.error("Failed to delete");
+            toast.error(`Failed to delete pause card "${card?.title}"`);
         }
     };
 
     const handleSetDefault = async (id: string) => {
+        const card = pauseCards.find((c) => c.id === id);
         try {
             // Unset all defaults in cards table
             await supabase
@@ -224,10 +226,10 @@ export default function PauseCardsPage() {
                 .neq("card_id", id);
             await syncPauseCardsTable(id, true, null, null);
 
-            toast.success("Default pause card updated");
+            toast.success(`"${card?.title}" set as default pause card`);
             fetchPauseCards();
         } catch {
-            toast.error("Failed to update default");
+            toast.error(`Failed to set "${card?.title}" as default`);
         }
     };
 

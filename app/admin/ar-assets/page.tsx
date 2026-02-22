@@ -95,7 +95,7 @@ export default function ARAssetsPage() {
       });
 
       if (response.ok) {
-        toast.success("AR asset uploaded successfully!");
+        toast.success(`AR asset "${name}" uploaded successfully`);
         resetForm();
         setShowUploadModal(false);
         fetchAssets();
@@ -112,6 +112,7 @@ export default function ARAssetsPage() {
   };
 
   const handleToggleActive = async (assetId: string, currentStatus: boolean) => {
+    const asset = assets.find((a) => a.id === assetId);
     try {
       const { error } = await supabase
         .from("ar_assets")
@@ -120,16 +121,17 @@ export default function ARAssetsPage() {
 
       if (error) throw error;
 
-      toast.success(`Asset ${!currentStatus ? "activated" : "deactivated"}`);
+      toast.success(`"${asset?.name}" ${!currentStatus ? "activated" : "deactivated"} successfully`);
       fetchAssets();
     } catch (error) {
       console.error("Toggle error:", error);
-      toast.error("Failed to update asset status");
+      toast.error(`Failed to update status for "${asset?.name}"`);
     }
   };
 
   const handleDelete = async (assetId: string) => {
-    if (!confirm("Are you sure you want to delete this AR asset?")) return;
+    const asset = assets.find((a) => a.id === assetId);
+    if (!confirm(`Are you sure you want to delete "${asset?.name || ""}"?`)) return;
 
     try {
       const { error } = await supabase
@@ -139,11 +141,11 @@ export default function ARAssetsPage() {
 
       if (error) throw error;
 
-      toast.success("Asset deleted successfully");
+      toast.success(`"${asset?.name}" deleted successfully`);
       fetchAssets();
     } catch (error) {
       console.error("Delete error:", error);
-      toast.error("Failed to delete asset");
+      toast.error(`Failed to delete "${asset?.name}"`);
     }
   };
 

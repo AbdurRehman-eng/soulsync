@@ -153,6 +153,21 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
             case "inspiration":
                 content.inspiration_text = body; content.inspiration_author = author;
                 break;
+            case "task":
+                content.description = taskDescription;
+                break;
+            case "journal":
+                content.prompt = journalPrompt;
+                break;
+            case "visual":
+                content.visual_type = visualType;
+                break;
+            case "share_card":
+                content.share_text = shareText; content.share_mood = shareMood;
+                break;
+            case "milestone":
+                content.body = body;
+                break;
             case "marketing":
                 content.cta_text = ctaText; content.cta_url = ctaUrl; content.image_url = imageUrl;
                 break;
@@ -190,7 +205,7 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
         };
-    }, [type, title, subtitle, verseText, verseReference, body, author, readTime, prayerText, quote, quoteAuthor, memeTextTop, memeTextBottom, factText, factSource, riddleQuestion, riddleAnswer, riddleHint, jokeSetup, jokePunchline, thoughtText, thoughtSource, ctaText, ctaUrl, upgradeMessage, journalPromptText, imageUrl, isActive, isPinned, pinPosition, pinStart, pinEnd, isFeatured, isTrending, featuredStart, featuredEnd, categoryId, pointsReward, minMembershipLevel, card]);
+    }, [type, title, subtitle, verseText, verseReference, body, author, readTime, prayerText, quote, quoteAuthor, memeTextTop, memeTextBottom, factText, factSource, riddleQuestion, riddleAnswer, riddleHint, jokeSetup, jokePunchline, thoughtText, thoughtSource, ctaText, ctaUrl, upgradeMessage, journalPromptText, imageUrl, taskDescription, journalPrompt, visualType, shareText, shareMood, isActive, isPinned, pinPosition, pinStart, pinEnd, isFeatured, isTrending, featuredStart, featuredEnd, categoryId, pointsReward, minMembershipLevel, card]);
 
     // Fetch categories for dropdown
     useEffect(() => {
@@ -247,6 +262,12 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
             setUpgradeMessage(content.upgrade_message || "");
             setJournalPromptText(content.journal_prompt_text || "");
             setImageUrl(content.image_url || "");
+
+            // Load inspiration-specific fields into shared body/author state
+            if (card.type === "inspiration") {
+                setBody(content.inspiration_text || "");
+                setAuthor(content.inspiration_author || "");
+            }
 
             // Featured/trending/pin
             setIsFeatured(card.is_featured || false);
@@ -422,6 +443,10 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                 content.thought_text = thoughtText;
                 content.thought_source = thoughtSource;
                 break;
+            case "inspiration":
+                content.inspiration_text = body;
+                content.inspiration_author = author;
+                break;
             case "visual":
                 content.visual_type = visualType;
                 break;
@@ -510,17 +535,27 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
         }
 
         // Validate quiz JSON before saving
-        if (type === "quiz" && rawQuizJson.trim()) {
+        if (type === "quiz") {
+            if (!rawQuizJson.trim()) {
+                toast.error("Quiz JSON is required. Paste questions JSON or use the AI Quiz Generator.");
+                return;
+            }
             try {
                 const parsed = JSON.parse(rawQuizJson);
-                if (!parsed.questions || !Array.isArray(parsed.questions)) {
-                    toast.error("Quiz JSON must have a 'questions' array");
+                if (!parsed.questions || !Array.isArray(parsed.questions) || parsed.questions.length === 0) {
+                    toast.error("Quiz JSON must have a non-empty 'questions' array");
                     return;
                 }
             } catch {
                 toast.error("Invalid JSON format for quiz");
                 return;
             }
+        }
+
+        // Validate game HTML before saving
+        if (type === "game" && !rawHtmlContent.trim()) {
+            toast.error("Game HTML content is required. Paste HTML or upload an .html file.");
+            return;
         }
 
         setLoading(true);
@@ -557,7 +592,7 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
 
                 if (error) throw error;
                 savedCardId = card.id;
-                toast.success("Content updated successfully");
+                toast.success(`"${title.trim()}" updated successfully`);
             } else {
                 // Create new card
                 const { data: newCard, error } = await supabase
@@ -568,7 +603,7 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
 
                 if (error) throw error;
                 savedCardId = newCard.id;
-                toast.success("Content created successfully");
+                toast.success(`"${title.trim()}" created successfully`);
             }
 
             // --- Save game data (raw HTML) ---
@@ -691,6 +726,7 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
 
             case "devotional":
             case "article":
+            case "inspiration":
                 return (
                     <>
                         <div>
@@ -1366,6 +1402,7 @@ export function CardFormModal({ isOpen, onClose, card, onSuccess }: CardFormModa
                                             <option value="article">Article</option>
                                             <option value="prayer">Prayer</option>
                                             <option value="motivational">Motivational</option>
+                                            <option value="inspiration">Inspiration</option>
                                         </optgroup>
                                         <optgroup label="Interactive">
                                             <option value="quiz">Quiz</option>

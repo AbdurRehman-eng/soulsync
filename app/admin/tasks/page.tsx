@@ -133,24 +133,26 @@ export default function TasksPage() {
           .eq("id", update.id);
       }
 
-      toast.success("Order updated");
+      toast.success("Task order updated successfully");
     } catch (error) {
       console.error("Error updating order:", error);
-      toast.error("Failed to update order");
+      toast.error("Failed to update task order");
       fetchTasks(); // Revert on error
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this task?")) return;
+    const task = tasks.find((t) => t.id === id);
+    const taskTitle = task?.cards?.title || "Untitled";
+    if (!confirm(`Are you sure you want to delete the task "${taskTitle}"?`)) return;
 
     try {
       const { error } = await supabase.from("tasks").delete().eq("id", id);
       if (error) throw error;
-      toast.success("Task deleted");
+      toast.success(`Task "${taskTitle}" deleted successfully`);
       setTasks((prev) => prev.filter((t) => t.id !== id));
     } catch (error) {
-      toast.error("Failed to delete task");
+      toast.error(`Failed to delete task "${taskTitle}"`);
     }
   };
 

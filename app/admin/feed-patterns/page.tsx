@@ -118,13 +118,13 @@ export default function FeedPatternsPage() {
                 sort_order: patterns.length + 1,
             });
             if (error) throw error;
-            toast.success("Pattern created");
+            toast.success(`Pattern "${newPatternName}" created successfully`);
             setNewPatternName("");
             setShowAddModal(false);
             fetchPatterns();
         } catch (err) {
             console.error("Failed to create:", err);
-            toast.error("Failed to create pattern");
+            toast.error(`Failed to create pattern "${newPatternName}"`);
         }
     };
 
@@ -135,21 +135,23 @@ export default function FeedPatternsPage() {
                 .update({ is_active: !pattern.is_active })
                 .eq("id", pattern.id);
             if (error) throw error;
+            toast.success(`Pattern "${pattern.name}" ${!pattern.is_active ? "activated" : "deactivated"} successfully`);
             fetchPatterns();
         } catch {
-            toast.error("Failed to toggle");
+            toast.error(`Failed to toggle pattern "${pattern.name}"`);
         }
     };
 
     const handleDeletePattern = async (id: string) => {
-        if (!confirm("Delete this pattern? This cannot be undone.")) return;
+        const pattern = patterns.find((p) => p.id === id);
+        if (!confirm(`Delete pattern "${pattern?.name || ""}"? This cannot be undone.`)) return;
         try {
             const { error } = await supabase.from("feed_patterns").delete().eq("id", id);
             if (error) throw error;
-            toast.success("Deleted");
+            toast.success(`Pattern "${pattern?.name}" deleted successfully`);
             fetchPatterns();
         } catch {
-            toast.error("Failed to delete");
+            toast.error(`Failed to delete pattern "${pattern?.name}"`);
         }
     };
 

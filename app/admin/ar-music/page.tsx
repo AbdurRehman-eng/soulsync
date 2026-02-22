@@ -94,7 +94,7 @@ export default function ARMusicPage() {
       });
 
       if (response.ok) {
-        toast.success("Music uploaded successfully!");
+        toast.success(`Music track "${name}" uploaded successfully`);
         resetForm();
         setShowUploadModal(false);
         fetchMusic();
@@ -111,6 +111,7 @@ export default function ARMusicPage() {
   };
 
   const handleToggleActive = async (musicId: string, currentStatus: boolean) => {
+    const track = musicTracks.find((t) => t.id === musicId);
     try {
       const { error } = await supabase
         .from("ar_world_music")
@@ -119,16 +120,17 @@ export default function ARMusicPage() {
 
       if (error) throw error;
 
-      toast.success(`Music ${!currentStatus ? "activated" : "deactivated"}`);
+      toast.success(`"${track?.name}" ${!currentStatus ? "activated" : "deactivated"} successfully`);
       fetchMusic();
     } catch (error) {
       console.error("Toggle error:", error);
-      toast.error("Failed to update music status");
+      toast.error(`Failed to update status for "${track?.name}"`);
     }
   };
 
   const handleDelete = async (musicId: string) => {
-    if (!confirm("Are you sure you want to delete this music track?")) return;
+    const track = musicTracks.find((t) => t.id === musicId);
+    if (!confirm(`Are you sure you want to delete "${track?.name || ""}"?`)) return;
 
     try {
       const { error } = await supabase
@@ -138,11 +140,11 @@ export default function ARMusicPage() {
 
       if (error) throw error;
 
-      toast.success("Music deleted successfully");
+      toast.success(`"${track?.name}" deleted successfully`);
       fetchMusic();
     } catch (error) {
       console.error("Delete error:", error);
-      toast.error("Failed to delete music");
+      toast.error(`Failed to delete "${track?.name}"`);
     }
   };
 

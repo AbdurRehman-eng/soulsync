@@ -58,12 +58,12 @@ export function UserEditModal({ isOpen, onClose, user, onSuccess }: UserEditModa
 
             if (error) throw error;
 
-            toast.success("User updated successfully");
+            toast.success(`User "@${user.username}" updated successfully`);
             onSuccess();
             onClose();
         } catch (error: any) {
             console.error("Error updating user:", error);
-            toast.error(error.message || "Failed to update user");
+            toast.error(error.message || `Failed to update user "@${user.username}"`);
         } finally {
             setLoading(false);
         }

@@ -62,11 +62,11 @@ export default function UsersPage() {
         try {
             const { error } = await supabase.from("profiles").delete().eq("id", id);
             if (error) throw error;
-            toast.success("User deleted");
+            toast.success(`User "${username}" deleted successfully`);
             setUsers((prev) => prev.filter((u) => u.id !== id));
             setTotalCount((prev) => prev - 1);
         } catch (error) {
-            toast.error("Failed to delete user");
+            toast.error(`Failed to delete user "${username}"`);
         }
     }, [supabase]);
 

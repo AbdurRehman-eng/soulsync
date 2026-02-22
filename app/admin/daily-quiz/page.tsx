@@ -99,7 +99,7 @@ export default function DailyQuizPage() {
                     .delete()
                     .eq("id", quizCard.candidateId);
                 if (error) throw error;
-                toast.success("Removed from daily quiz pool");
+                toast.success(`"${quizCard.title}" removed from daily quiz pool`);
             } else {
                 // Add to pool
                 const { error } = await supabase
@@ -109,11 +109,11 @@ export default function DailyQuizPage() {
                         is_candidate: true,
                     });
                 if (error) throw error;
-                toast.success("Added to daily quiz pool");
+                toast.success(`"${quizCard.title}" added to daily quiz pool`);
             }
             fetchData();
         } catch {
-            toast.error("Failed to update");
+            toast.error(`Failed to update "${quizCard.title}"`);
         }
     };
 
@@ -154,7 +154,8 @@ export default function DailyQuizPage() {
                 if (error) throw error;
             }
 
-            toast.success(`Quiz scheduled for ${scheduleDate}`);
+            const quizTitle = allQuizCards.find(q => q.id === selectedCardId)?.title || "Quiz";
+            toast.success(`"${quizTitle}" scheduled for ${scheduleDate}`);
             setShowScheduleModal(false);
             setSelectedCardId(null);
             setScheduleDate("");
@@ -166,16 +167,18 @@ export default function DailyQuizPage() {
     };
 
     const handleRemoveSchedule = async (candidateId: string) => {
+        const cand = candidates.find(c => c.id === candidateId);
+        const quizTitle = cand?.card?.title || "Quiz";
         try {
             const { error } = await supabase
                 .from("daily_quiz_candidates")
                 .update({ scheduled_date: null })
                 .eq("id", candidateId);
             if (error) throw error;
-            toast.success("Schedule removed");
+            toast.success(`Schedule removed for "${quizTitle}"`);
             fetchData();
         } catch {
-            toast.error("Failed to remove schedule");
+            toast.error(`Failed to remove schedule for "${quizTitle}"`);
         }
     };
 

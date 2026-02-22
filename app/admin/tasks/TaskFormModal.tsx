@@ -83,13 +83,15 @@ export function TaskFormModal({ task, onClose, onSuccess }: TaskFormModalProps) 
           .eq("id", task.id);
 
         if (error) throw error;
-        toast.success("Task updated successfully");
+        const taskTitle = cards.find((c) => c.id === formData.card_id)?.title || "Task";
+        toast.success(`Task "${taskTitle}" updated successfully`);
       } else {
         // Create new task
         const { error } = await supabase.from("tasks").insert([payload]);
 
         if (error) throw error;
-        toast.success("Task created successfully");
+        const taskTitle = cards.find((c) => c.id === formData.card_id)?.title || "Task";
+        toast.success(`Task "${taskTitle}" created successfully`);
       }
 
       onSuccess();

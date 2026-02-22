@@ -47,15 +47,16 @@ export default function LevelsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this level?")) return;
+    const level = levels.find((l) => l.id === id);
+    if (!confirm(`Are you sure you want to delete level "${level?.name || ""}"?`)) return;
 
     try {
       const { error } = await supabase.from("levels").delete().eq("id", id);
       if (error) throw error;
-      toast.success("Level deleted");
+      toast.success(`Level "${level?.name}" deleted successfully`);
       setLevels((prev) => prev.filter((l) => l.id !== id));
     } catch (error) {
-      toast.error("Failed to delete level");
+      toast.error(`Failed to delete level "${level?.name}"`);
     }
   };
 

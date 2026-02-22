@@ -70,7 +70,7 @@ export function MoodFormModal({ isOpen, onClose, mood, onSuccess }: MoodFormModa
                     .eq("id", mood.id);
 
                 if (error) throw error;
-                toast.success("Mood updated successfully");
+                toast.success(`Mood "${name.trim()}" updated successfully`);
             } else {
                 // Create new mood
                 const { error } = await supabase.from("moods").insert({
@@ -83,7 +83,7 @@ export function MoodFormModal({ isOpen, onClose, mood, onSuccess }: MoodFormModa
                 });
 
                 if (error) throw error;
-                toast.success("Mood created successfully");
+                toast.success(`Mood "${name.trim()}" created successfully`);
             }
 
             onSuccess();

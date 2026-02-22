@@ -248,26 +248,28 @@ export default function ContentPage() {
         )
       );
 
-      toast.success("Order updated");
+      toast.success("Card order updated successfully");
     } catch (error) {
       console.error("Error updating order:", error);
-      toast.error("Failed to update order");
+      toast.error("Failed to update card order");
       fetchCards(); // Revert on error
     }
   };
 
   const handleDelete = useCallback(async (id: string) => {
-    if (!confirm("Are you sure you want to delete this content?")) return;
+    const card = cards.find((c) => c.id === id);
+    const cardTitle = card?.title || "Untitled";
+    if (!confirm(`Are you sure you want to delete "${cardTitle}"?`)) return;
 
     try {
       const { error } = await supabase.from("cards").delete().eq("id", id);
       if (error) throw error;
-      toast.success("Content deleted");
+      toast.success(`"${cardTitle}" deleted successfully`);
       setCards((prev) => prev.filter((c) => c.id !== id));
     } catch (error) {
-      toast.error("Failed to delete content");
+      toast.error(`Failed to delete "${cardTitle}"`);
     }
-  }, [supabase]);
+  }, [supabase, cards]);
 
   const handleCreate = useCallback(() => {
     setSelectedCard(null);
