@@ -61,16 +61,27 @@ export async function GET(request: NextRequest) {
         if (!game) return null;
 
         return {
-          id: game.id,
-          card_id: game.card_id,
-          html_content: card.title,
+          ...card,
+          game: {
+            id: game.id,
+            card_id: game.card_id,
+            html_content: game.html_content,
+            difficulty: game.difficulty,
+            instructions: game.instructions,
+            max_score: game.max_score,
+            is_ar_game: game.is_ar_game,
+            ar_type: game.ar_type,
+            ar_config: game.ar_config,
+            created_at: game.created_at,
+          },
+          // Keep flat game fields for backward compatibility (ar-games page uses these directly)
+          html_content: game.html_content,
           difficulty: game.difficulty,
           instructions: game.instructions,
           max_score: game.max_score,
           is_ar_game: game.is_ar_game,
           ar_type: game.ar_type,
           ar_config: game.ar_config,
-          created_at: game.created_at,
         };
       })
       .filter((item): item is NonNullable<typeof item> => {
