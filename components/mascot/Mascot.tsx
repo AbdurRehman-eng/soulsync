@@ -17,7 +17,7 @@ export type MascotState =
 
 interface MascotProps {
   state?: MascotState;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   showSpeechBubble?: boolean;
   speechText?: string;
   onSpeechComplete?: () => void;
@@ -25,6 +25,7 @@ interface MascotProps {
 }
 
 const sizeClasses = {
+  xs: "w-12 h-12 sm:w-14 sm:h-14",
   sm: "w-16 h-16 sm:w-20 sm:h-20",
   md: "w-24 h-24 sm:w-32 sm:h-32",
   lg: "w-28 h-28 sm:w-36 sm:h-36 md:w-44 md:h-44",
@@ -139,38 +140,14 @@ export function Mascot({
 
   return (
     <div className={cn("relative", className)}>
-      {/* Speech Bubble - positioned to the right of mascot */}
-      <AnimatePresence>
-        {showSpeechBubble && speechText && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.9 }}
-            className="absolute z-10 top-0 left-full ml-1 sm:ml-2"
-          >
-            <div className="glass-card px-2 py-1.5 sm:px-3 sm:py-2 w-[120px] sm:w-[150px] md:w-[170px]">
-              <p className="text-[10px] sm:text-xs md:text-sm text-foreground leading-relaxed">
-                {displayedText}
-                {isTyping && (
-                  <motion.span
-                    animate={{ opacity: [1, 0] }}
-                    transition={{ duration: 0.5, repeat: Infinity }}
-                  >
-                    |
-                  </motion.span>
-                )}
-              </p>
-              {/* Speech bubble pointer - points left toward mascot */}
-              <div className="absolute top-4 sm:top-5 -left-2">
-                <div className="w-0 h-0 border-t-[5px] border-b-[5px] border-r-[6px] border-t-transparent border-b-transparent border-r-[var(--card)]" />
-              </div>
-            </div>
-          </motion.div>
+      <div
+        className={cn(
+          "mx-auto flex items-start justify-between",
+          showSpeechBubble && speechText ? "w-full max-w-[260px] gap-3" : "w-fit"
         )}
-      </AnimatePresence>
-
-      {/* Mascot Container */}
-      <div className={cn("relative", sizeClasses[size])}>
+      >
+        {/* Mascot Container */}
+        <div className={cn("relative flex-shrink-0", sizeClasses[size])}>
         {/* Energy glow — active states */}
         {state === "power-up" && (
           <motion.div
@@ -269,6 +246,37 @@ export function Mascot({
             sizes="(max-width: 768px) 150px, 224px"
           />
         </motion.div>
+        </div>
+
+        {/* Speech Bubble - to the right of mascot */}
+        <AnimatePresence>
+          {showSpeechBubble && speechText && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.9 }}
+              className="relative z-10 flex-shrink-0"
+            >
+              <div className="glass-card px-2 py-1.5 sm:px-3 sm:py-2 w-[120px] sm:w-[150px] md:w-[170px]">
+                <p className="text-[10px] sm:text-xs md:text-sm text-foreground leading-relaxed">
+                  {displayedText}
+                  {isTyping && (
+                    <motion.span
+                      animate={{ opacity: [1, 0] }}
+                      transition={{ duration: 0.5, repeat: Infinity }}
+                    >
+                      |
+                    </motion.span>
+                  )}
+                </p>
+                {/* Speech bubble pointer - points left toward mascot */}
+                <div className="absolute top-4 sm:top-5 -left-2">
+                  <div className="w-0 h-0 border-t-[5px] border-b-[5px] border-r-[6px] border-t-transparent border-b-transparent border-r-[var(--card)]" />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

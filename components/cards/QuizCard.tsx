@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Mascot } from "@/components/mascot/Mascot";
+import { ReadMoreModal } from "./ReadMoreModal";
 import type { MascotState } from "@/components/mascot/Mascot";
 import type { Card, QuizQuestion } from "@/types";
 
@@ -58,6 +59,9 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
   const [score, setScore] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const prefetchedRef = useRef(false);
+
+  // Long description handling for preview phase
+  const [showDescriptionModal, setShowDescriptionModal] = useState(false);
 
   // Mascot state
   const [mascotState, setMascotState] = useState<MascotState>("idle");
@@ -607,58 +611,107 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
 
   // ─── PREVIEW (default — original card) ──────────────────────────────
 
+  const description = card.subtitle ?? "";
+  const DESCRIPTION_PREVIEW_MAX = 100;
+  const isLongDescription = description.length > DESCRIPTION_PREVIEW_MAX;
+  const descriptionPreview = isLongDescription
+    ? description.slice(0, DESCRIPTION_PREVIEW_MAX) + "..."
+    : description;
+
   return (
-    <div className="min-h-full flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 sm:p-2 rounded-lg bg-purple-500/20">
-            <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500" />
+    <>
+      <div className="min-h-full flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-0.5">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-purple-500/20">
+              <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500" />
+            </div>
+            <span className="text-xs sm:text-sm font-medium text-purple-500">
+              Quiz
+            </span>
           </div>
-          <span className="text-xs sm:text-sm font-medium text-purple-500">
-            Quiz
-          </span>
+        </div>
+
+        {/* Quiz preview */}
+        <div className="flex-1 flex flex-col justify-between items-center text-center min-h-0 px-2 py-0.5 gap-1.5">
+          <div className="flex flex-col items-center text-center gap-1.5 max-w-xs min-h-0">
+            {/* Mascot replaces trophy */}
+            <div className="mb-0">
+              <Mascot
+                state="power-up"
+                size="xs"
+                showSpeechBubble
+                speechText="Ready to test your knowledge?"
+              />
+            </div>
+
+            {/* Title */}
+            <h3 className="text-[13px] sm:text-base font-bold leading-snug line-clamp-2">
+              {card.title}
+            </h3>
+
+            {/* Description / subtitle */}
+            {description && (
+              <p className="text-[10px] sm:text-xs text-muted-foreground leading-snug line-clamp-2">
+                {descriptionPreview}
+              </p>
+            )}
+
+            {/* Read more for long text */}
+            {isLongDescription && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDescriptionModal(true);
+                }}
+                className="text-[11px] sm:text-xs text-primary hover:underline"
+              >
+                Read more →
+              </button>
+            )}
+
+            {/* Points indicator */}
+            {card.points_reward > 0 && (
+              <div className="mt-0.5 px-2.5 py-0.5 rounded-full bg-accent/20 text-accent text-[10px] sm:text-xs font-medium">
+                Earn +{card.points_reward} pts
+              </div>
+            )}
+          </div>
+
+          {/* Take Quiz button */}
+          <motion.button
+            onClick={handleStartPreview}
+            disabled={isLocked}
+            className="mb-0.5 flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[13px] sm:text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+            whileTap={{ scale: 0.95 }}
+          >
+            Take Quiz
+            <ChevronRight className="w-4 h-4" />
+          </motion.button>
         </div>
       </div>
 
-      {/* Quiz preview */}
-      <div className="flex-1 flex flex-col justify-center items-center text-center min-h-0 px-2">
-        {/* Mascot replaces trophy */}
-        <div className="mb-3">
-          <Mascot
-            state="power-up"
-            size="sm"
-            showSpeechBubble
-            speechText="Ready to test your knowledge?"
-          />
-        </div>
-
-        {/* Title */}
-        <h3 className="text-base sm:text-lg font-bold mb-1">{card.title}</h3>
-        {card.subtitle && (
-          <p className="text-xs sm:text-sm text-muted-foreground mb-3 max-w-xs">
-            {card.subtitle}
-          </p>
-        )}
-
-        {/* Points indicator */}
-        {card.points_reward > 0 && (
-          <div className="mb-3 px-3 py-1.5 rounded-full bg-accent/20 text-accent text-xs font-medium">
-            Earn +{card.points_reward} pts
-          </div>
-        )}
-
-        {/* Take Quiz button */}
-        <motion.button
-          onClick={handleStartPreview}
-          disabled={isLocked}
-          className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-          whileTap={{ scale: 0.95 }}
-        >
-          Take Quiz
-          <ChevronRight className="w-4 h-4" />
-        </motion.button>
-      </div>
-    </div>
+      {isLongDescription && (
+        <ReadMoreModal
+          isOpen={showDescriptionModal}
+          onClose={() => setShowDescriptionModal(false)}
+          title={card.title}
+          subtitle={card.subtitle}
+          body={description}
+          badge={{
+            label: "Quiz",
+            icon: <HelpCircle className="w-4 h-4 text-purple-500" />,
+            color: "text-purple-500",
+          }}
+          meta={
+            card.points_reward > 0
+              ? `Earn +${card.points_reward} pts`
+              : null
+          }
+        />
+      )}
+    </>
   );
 }
