@@ -81,6 +81,12 @@ const nextConfig = {
   reactStrictMode: true,
   compress: true,
   poweredByHeader: false,
+  async rewrites() {
+    return [
+      // Serve PWA manifest icons via API until public/icons/ has real files
+      { source: "/icons/:path*", destination: "/api/icons/:path*" },
+    ];
+  },
   experimental: {
     optimizePackageImports: [
       "framer-motion",

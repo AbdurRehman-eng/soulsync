@@ -1,12 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-// GET /api/games?type=html|ar|all&ar_only=true
+// GET /api/games?type=html|ar|all&ar_only=true&card_id=xxx
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const cardId = request.nextUrl.searchParams.get("card_id");
     const type = request.nextUrl.searchParams.get("type") || "all";
     const arOnly = request.nextUrl.searchParams.get("ar_only") === "true";
+
+    // Single game lookup by card_id
+    if (cardId) {
+      console.log("[API /games] Lookup by card_id", cardId);
+
+      const { data: gameData, error } = await supabase
+        .from("games")
+        .select("*")
+        .eq("card_id", cardId)
+        .single();
+
+      if (error || !gameData) {
+        console.error("[API /games] Game not found for card_id", {
+          cardId,
+          error,
+        });
+        return NextResponse.json({ error: "Game not found" }, { status: 404 });
+      }
+
+      console.log("[API /games] Found game for card_id", {
+        cardId,
+        gameId: gameData.id,
+      });
+      return NextResponse.json({ game: gameData });
+    }
 
     // Get current user membership level
     const {
@@ -37,11 +63,12 @@ export async function GET(request: NextRequest) {
     const { data: gameCards, error } = await query;
 
     if (error) {
-      console.error("Games API error:", error);
+      console.error("[API /games] Failed to fetch game cards", error);
       return NextResponse.json({ error: "Failed to fetch games" }, { status: 500 });
     }
 
     if (!gameCards || gameCards.length === 0) {
+      console.log("[API /games] No game cards found");
       return NextResponse.json({ games: [] });
     }
 
@@ -96,6 +123,13 @@ export async function GET(request: NextRequest) {
         if (type === "ar") return !!isAR;
         return true; // "all"
       });
+
+    console.log("[API /games] Returning games list", {
+      totalGameCards: gameCards.length,
+      totalGames: games.length,
+      type,
+      arOnly,
+    });
 
     return NextResponse.json({ games });
   } catch (error) {

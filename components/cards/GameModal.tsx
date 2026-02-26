@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { X, Loader2, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { SandboxedIframe } from "@/components/sandbox/SandboxedIframe";
@@ -30,17 +31,23 @@ const ARGameViewer = dynamic(
 
 interface GameModalProps {
   card: Card;
-  /** Pre-fetched game data from GameCard (avoids redundant fetch) */
-  initialGameData?: Game | null;
   isOpen: boolean;
   onClose: () => void;
+  /** Pre-fetched game data to avoid redundant client-side fetch */
+  initialGameData?: Game | null;
+  /** Optional: notify parent when game data is ready */
+  onLoaded?: () => void;
+  /** Optional: notify parent when game failed to load */
+  onError?: (message: string) => void;
 }
 
 export function GameModal({
   card,
-  initialGameData,
   isOpen,
   onClose,
+  initialGameData,
+  onLoaded,
+  onError,
 }: GameModalProps) {
   const [gameData, setGameData] = useState<Game | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,11 +56,17 @@ export function GameModal({
   const [score, setScore] = useState(0);
   const [completed, setCompleted] = useState(false);
   const supabase = useMemo(() => createClient(), []);
+  const initialGameDataRef = useRef<Game | null | undefined>(undefined);
 
-  // When modal opens: use pre-fetched data or fetch fresh
+  // Keep ref in sync so we use latest without re-running effect on parent re-renders
+  initialGameDataRef.current = initialGameData;
+
+  // When modal opens: use pre-fetched data or fetch fresh (deps: only isOpen + card.id to avoid stuck loading)
   useEffect(() => {
     if (!isOpen) {
-      // Reset everything when closed
+      console.log("[GameModal] Closing modal, resetting state", {
+        cardId: card.id,
+      });
       setGameData(null);
       setLoading(false);
       setError(null);
@@ -63,45 +76,90 @@ export function GameModal({
       return;
     }
 
-    // If we already have game data from the card, use it directly
-    if (initialGameData) {
-      setGameData(initialGameData);
+    const prefetched = initialGameDataRef.current;
+    console.log("[GameModal] Opened", {
+      cardId: card.id,
+      hasPrefetched: !!prefetched,
+    });
+
+    if (prefetched) {
+      setGameData(prefetched);
       setLoading(false);
       setError(null);
+      onLoaded?.();
+      console.log("[GameModal] Using prefetched game data", {
+        cardId: card.id,
+      });
       return;
     }
 
-    // Otherwise fetch it
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    Promise.resolve(
-      supabase
-        .from("games")
-        .select("*")
-        .eq("card_id", card.id)
-        .single()
-    )
-      .then(({ data, error: fetchError }) => {
+    const timeoutMs = 8000;
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) {
+        cancelled = true;
+        setError("Game took too long to load");
+        setLoading(false);
+        console.warn("[GameModal] Game load timed out", {
+          cardId: card.id,
+        });
+        onError?.("Game took too long to load");
+      }
+    }, timeoutMs);
+
+    (async () => {
+      try {
+        console.log("[GameModal] Fetching game via /api/games", {
+          cardId: card.id,
+        });
+        const response = await fetch(`/api/games?card_id=${card.id}`);
         if (cancelled) return;
-        if (fetchError) {
+        if (!response.ok) {
           setError("Game data not found");
+          console.error("[GameModal] /api/games response not ok", {
+            cardId: card.id,
+            status: response.status,
+          });
+          onError?.("Game data not found");
         } else {
-          setGameData(data);
+          const data = await response.json();
+          if (data.game) {
+            setGameData(data.game);
+            console.log("[GameModal] Loaded game data from API", {
+              cardId: card.id,
+              gameId: data.game.id,
+            });
+            onLoaded?.();
+          } else {
+            setError("Game data not found");
+            console.error("[GameModal] /api/games returned no game", {
+              cardId: card.id,
+            });
+            onError?.("Game data not found");
+          }
         }
-      })
-      .catch(() => {
-        if (!cancelled) setError("Failed to load game");
-      })
-      .finally(() => {
+      } catch {
+        if (!cancelled) {
+          setError("Failed to load game");
+          console.error("[GameModal] Failed to load game (network/runtime)", {
+            cardId: card.id,
+          });
+          onError?.("Failed to load game");
+        }
+      } finally {
+        clearTimeout(timeoutId);
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
     };
-  }, [isOpen, card.id, initialGameData, supabase]);
+  }, [isOpen, card.id]);
 
   // Auto-start HTML games once data is ready
   useEffect(() => {
@@ -230,15 +288,27 @@ export function GameModal({
 
           {/* Error state */}
           {!loading && error && (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
+            <div className="flex-1 flex items-center justify-center p-4">
+              <div className="text-center max-w-sm">
                 <p className="text-lg font-semibold mb-2">{error}</p>
-                <button
-                  onClick={handleClose}
-                  className="text-primary hover:underline"
-                >
-                  Go back
-                </button>
+                <p className="text-sm text-muted-foreground mb-4">
+                  You can try opening the game in a full page.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                  <Link
+                    href={`/game/${card.id}`}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-primary text-primary-foreground font-medium hover:opacity-90"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open game page
+                  </Link>
+                  <button
+                    onClick={handleClose}
+                    className="px-4 py-3 rounded-full border border-border hover:bg-muted font-medium"
+                  >
+                    Go back
+                  </button>
+                </div>
               </div>
             </div>
           )}

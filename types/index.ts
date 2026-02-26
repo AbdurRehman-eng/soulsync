@@ -116,6 +116,8 @@ export interface Card {
     questions: QuizQuestion[];
     total_questions: number;
   };
+  // Embedded game data (loaded server-side in feed API)
+  game_data?: Game;
 }
 
 export interface CardContent {

@@ -24,6 +24,7 @@ export async function GET(
   try {
     const supabase = await createClient();
     const { slug } = await params;
+    console.log("[CategoryFeed] Request", { slug });
 
     // Get current user membership level
     const {
@@ -132,6 +133,48 @@ export async function GET(
             }
           }
         }
+      }
+    }
+
+    // Embed game data into game cards (so modal doesn't need to fetch; avoids loading stuck)
+    const gameCards = cards.filter((c: any) => c.type === "game");
+    if (gameCards.length > 0) {
+      console.log("[CategoryFeed] Embedding game_data", {
+        slug,
+        totalCards: cards.length,
+        gameCards: gameCards.length,
+      });
+
+      const { data: gameRows, error: gameError } = await supabase
+        .from("games")
+        .select("*")
+        .in("card_id", gameCards.map((c: any) => c.id));
+
+      if (gameError) {
+        console.error("[CategoryFeed] Failed to load games for category", {
+          slug,
+          error: gameError,
+        });
+      }
+
+      if (gameRows) {
+        const gameMap = new Map<string, any>();
+        for (const g of gameRows) {
+          gameMap.set(g.card_id, g);
+        }
+        for (const card of cards) {
+          if (card.type === "game") {
+            const gData = gameMap.get(card.id);
+            if (gData) {
+              (card as any).game_data = gData;
+            }
+          }
+        }
+
+        console.log("[CategoryFeed] Embedded game_data for cards", {
+          slug,
+          embeddedCount: cards.filter((c: any) => c.type === "game" && c.game_data).length,
+        });
       }
     }
 

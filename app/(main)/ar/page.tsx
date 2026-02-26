@@ -150,12 +150,12 @@ export default function ARPage() {
       {selectedGame && (
         <GameModal
           card={selectedGame}
-          initialGameData={selectedGame.game}
           isOpen={showModal}
           onClose={() => {
             setShowModal(false);
             setSelectedGame(null);
           }}
+          initialGameData={selectedGame.game}
         />
       )}
     </div>

@@ -220,6 +220,30 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        // Embed game data into cached game cards
+        const cachedGameCards = cards.filter((c) => c.type === "game");
+        if (cachedGameCards.length > 0) {
+          const { data: gameRows } = await supabase
+            .from("games")
+            .select("*")
+            .in("card_id", cachedGameCards.map((c) => c.id));
+
+          if (gameRows) {
+            const gameMap = new Map<string, any>();
+            for (const g of gameRows) {
+              gameMap.set(g.card_id, g);
+            }
+            for (const card of cards) {
+              if (card.type === "game") {
+                const gData = gameMap.get(card.id);
+                if (gData) {
+                  card.game_data = gData;
+                }
+              }
+            }
+          }
+        }
+
         // Log mood asynchronously
         if (moodId) {
           Promise.all([
@@ -257,6 +281,7 @@ export async function GET(request: NextRequest) {
       seenContentResult,
       upgradeResult,
       quizCardIdsWithDataResult,
+      gameCardIdsWithDataResult,
       moodWeightsResult,
       profileStatsResult,
     ] = await Promise.all([
@@ -319,6 +344,10 @@ export async function GET(request: NextRequest) {
       supabase
         .from("quizzes")
         .select("card_id, quiz_questions(id)"),
+      // Game cards that actually have game data in the games table
+      supabase
+        .from("games")
+        .select("card_id"),
       // Card-mood weights for mood-based filtering (slots 1-3)
       moodId
         ? supabase
@@ -351,6 +380,11 @@ export async function GET(request: NextRequest) {
       quizDataRaw
         .filter((q: any) => q.quiz_questions && q.quiz_questions.length > 0)
         .map((q: any) => q.card_id as string)
+    );
+
+    // Build set of card IDs that have actual game data in the games table
+    const gameCardIdsWithData = new Set(
+      (gameCardIdsWithDataResult.data || []).map((g: any) => g.card_id as string)
     );
 
     // Build mood weight map: card_id -> weight
@@ -395,6 +429,8 @@ export async function GET(request: NextRequest) {
     for (const card of allCards) {
       if (BONUS_TYPES.includes(card.type)) continue; // Skip bonus types from regular pool
       if (card.type === "pause") continue; // Pause cards handled separately
+      // Skip game cards that don't have actual game data in the games table
+      if (card.type === "game" && !gameCardIdsWithData.has(card.id)) continue;
 
       const existing = cardsByType.get(card.type) || [];
       existing.push(card);
@@ -711,6 +747,32 @@ export async function GET(request: NextRequest) {
                 questions: qData.quiz_questions,
                 total_questions: qData.quiz_questions.length,
               };
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================
+    // Embed game data into game cards
+    // ============================================
+    const gameCardsInFeed = deduped.filter((c) => c.type === "game");
+    if (gameCardsInFeed.length > 0) {
+      const { data: gameRows } = await supabase
+        .from("games")
+        .select("*")
+        .in("card_id", gameCardsInFeed.map((c) => c.id));
+
+      if (gameRows) {
+        const gameMap = new Map<string, any>();
+        for (const g of gameRows) {
+          gameMap.set(g.card_id, g);
+        }
+        for (const card of deduped) {
+          if (card.type === "game") {
+            const gData = gameMap.get(card.id);
+            if (gData) {
+              card.game_data = gData;
             }
           }
         }
