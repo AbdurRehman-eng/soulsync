@@ -111,11 +111,11 @@ export default function MorePage() {
                 </div>
               )}
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-lg truncate">
                 {profile.display_name || profile.username || "User"}
               </h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground truncate">
                 @{profile.username || "anonymous"}
               </p>
               <div className="flex items-center gap-2 mt-1">
