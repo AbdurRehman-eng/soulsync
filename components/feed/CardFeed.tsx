@@ -110,6 +110,7 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
 
   const postInteraction = useCallback(async (cardId: string, type: string) => {
     if (authFailedRef.current) return;
+    if (cardId === "00000000-0000-0000-0000-000000000000") return;
     try {
       const res = await fetch("/api/interactions", {
         method: "POST",

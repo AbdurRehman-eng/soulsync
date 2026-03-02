@@ -244,6 +244,56 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        // Ensure pause card is at the end of cached feed
+        const hasPause = cards.some((c) => c.type === "pause");
+        if (!hasPause) {
+          const { data: pauseRows } = await supabase
+            .from("pause_cards")
+            .select("*, card:cards(*)")
+            .order("is_default", { ascending: false });
+
+          const pCards = pauseRows || [];
+          const datePc = pCards.find((pc: any) => {
+            if (!pc.card?.is_active || pc.is_default) return false;
+            const s = pc.active_start, e = pc.active_end;
+            if (!s && !e) return false;
+            if (s && today < s) return false;
+            if (e && today > e) return false;
+            return true;
+          });
+          const defaultPc = pCards.find((pc: any) => pc.is_default && pc.card?.is_active);
+          const cachedPause = datePc?.card || defaultPc?.card || {
+            id: "00000000-0000-0000-0000-000000000000",
+            type: "pause" as CardType,
+            title: "Time to Pause",
+            subtitle: null,
+            content: {
+              pause_message: "You've reached the end of today's feed. Take a moment to breathe and reflect.",
+              pause_type: "default",
+              pause_cta_text: "See you tomorrow",
+            },
+            thumbnail_url: null,
+            background_url: null,
+            min_membership_level: 1,
+            points_reward: 0,
+            is_active: true,
+            is_pinned: false,
+            pin_position: null,
+            pin_start: null,
+            pin_end: null,
+            publish_date: null,
+            sort_order: 999,
+            is_featured: false,
+            is_trending: false,
+            featured_start: null,
+            featured_end: null,
+            category_id: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          cards.push(cachedPause);
+        }
+
         // Log mood asynchronously
         if (moodId) {
           Promise.all([
@@ -613,7 +663,7 @@ export async function GET(request: NextRequest) {
       } else {
         // Synthesize a pause card if none exist in DB
         pauseCard = {
-          id: "synthetic-pause",
+          id: "00000000-0000-0000-0000-000000000000",
           type: "pause" as CardType,
           title: "Time to Pause",
           subtitle: null,
@@ -660,11 +710,10 @@ export async function GET(request: NextRequest) {
       if (card) feedCards.push(card);
     }
 
-    // Slot 20: Pause card (always last in the main feed)
-    if (pauseCard) feedCards.push(pauseCard);
+    // Pause card is appended after all injections (see below)
 
-    // Limit to 20 cards total
-    const mainFeed = feedCards.slice(0, 20);
+    // Limit to 19 cards (reserve last slot for pause card)
+    const mainFeed = feedCards.slice(0, 19);
 
     // ============================================
     // Bonus Cards (after slot 20)
@@ -751,6 +800,9 @@ export async function GET(request: NextRequest) {
       return true;
     });
 
+    // Pause card is always the very last card in the feed
+    if (pauseCard) deduped.push(pauseCard);
+
     // ============================================
     // Embed quiz data into quiz cards
     // ============================================
@@ -812,8 +864,12 @@ export async function GET(request: NextRequest) {
     // Track seen content + cache feed (async, non-blocking)
     // ============================================
     if (user && deduped.length > 0) {
+      // Only cache real cards (exclude synthetic pause card which has no DB row)
+      const SYNTHETIC_ID = "00000000-0000-0000-0000-000000000000";
+      const cacheable = deduped.filter((c) => c.id !== SYNTHETIC_ID);
+
       // Cache the feed
-      const feedItems = deduped.map((card, index) => ({
+      const feedItems = cacheable.map((card, index) => ({
         user_id: user.id,
         card_id: card.id,
         position: index + 1,
@@ -827,7 +883,7 @@ export async function GET(request: NextRequest) {
         .catch(() => {});
 
       // Track seen content for cooldown (upsert to avoid duplicates)
-      const seenItems = deduped.map((card) => ({
+      const seenItems = cacheable.map((card) => ({
         user_id: user.id,
         card_id: card.id,
         card_type: card.type,
