@@ -27,6 +27,8 @@ interface ARGameViewerProps {
   arConfig: ARGameConfig;
   maxScore: number;
   onGameComplete: (score: number) => void;
+  /** When true, uses absolute positioning to fill parent container instead of fixed full-screen */
+  inline?: boolean;
 }
 
 export function ARGameViewer({
@@ -38,7 +40,9 @@ export function ARGameViewer({
   arConfig,
   maxScore,
   onGameComplete,
+  inline = false,
 }: ARGameViewerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -113,12 +117,11 @@ export function ARGameViewer({
     scene.background = null; // Transparent so camera feed shows through
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(
-      75,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      1000
-    );
+    const container = inline ? containerRef.current : null;
+    const w = container?.clientWidth ?? window.innerWidth;
+    const h = container?.clientHeight ?? window.innerHeight;
+
+    const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 1000);
     camera.position.z = 5;
     cameraRef.current = camera;
 
@@ -127,7 +130,7 @@ export function ARGameViewer({
       alpha: true,
       antialias: true,
     });
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(w, h);
     renderer.setPixelRatio(window.devicePixelRatio);
     rendererRef.current = renderer;
 
@@ -194,7 +197,7 @@ export function ARGameViewer({
       objectsRef.current = [];
       renderer.dispose();
     };
-  }, [isOpen, gameState, arType, arConfig]);
+  }, [isOpen, gameState, arType, arConfig, inline]);
 
   // Game timer
   useEffect(() => {
@@ -445,10 +448,11 @@ export function ARGameViewer({
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          ref={containerRef}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-black"
+          className={inline ? "absolute inset-0 z-10 bg-black overflow-hidden" : "fixed inset-0 z-50 bg-black"}
         >
           {/* Camera Video Feed (behind everything) */}
           <video
@@ -476,12 +480,12 @@ export function ARGameViewer({
           {/* HUD Overlay */}
           <div className="absolute inset-0 pointer-events-none">
             {/* Top Bar */}
-            <div className="p-4 flex items-center justify-between pointer-events-auto">
+            <div className={`${inline ? "p-2" : "p-4"} flex items-center justify-between pointer-events-auto`}>
               <button
                 onClick={handleCloseGame}
-                className="p-2 rounded-lg bg-black/50 backdrop-blur-sm hover:bg-black/70 transition-colors"
+                className="p-1.5 rounded-lg bg-black/50 backdrop-blur-sm hover:bg-black/70 transition-colors"
               >
-                <X size={24} className="text-white" />
+                <X size={inline ? 18 : 24} className="text-white" />
               </button>
 
               {gameState === "playing" && (
@@ -552,15 +556,15 @@ export function ARGameViewer({
                   <motion.div
                     animate={{ scale: [1, 1.1, 1] }}
                     transition={{ duration: 1.5, repeat: Infinity }}
-                    className="w-20 h-20 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto mb-6"
+                    className={`${inline ? "w-12 h-12 mb-3" : "w-20 h-20 mb-6"} rounded-full bg-blue-500/20 flex items-center justify-center mx-auto`}
                   >
-                    <Camera size={40} className="text-blue-500" />
+                    <Camera size={inline ? 24 : 40} className="text-blue-500" />
                   </motion.div>
-                  <h2 className="text-xl font-bold text-white mb-2">
+                  <h2 className={`${inline ? "text-sm" : "text-xl"} font-bold text-white mb-1`}>
                     Setting up AR Camera...
                   </h2>
-                  <p className="text-gray-400 text-sm">
-                    Please allow camera access for the AR experience
+                  <p className={`text-gray-400 ${inline ? "text-xs" : "text-sm"}`}>
+                    Please allow camera access
                   </p>
                 </div>
               </motion.div>
@@ -573,82 +577,96 @@ export function ARGameViewer({
                 animate={{ opacity: 1, scale: 1 }}
                 className="absolute inset-0 flex items-center justify-center p-4 pointer-events-auto"
               >
-                <div className="glass-card max-w-md w-full p-6 text-center bg-black/60 backdrop-blur-xl border border-white/10">
-                  <Gamepad2 className="w-16 h-16 mx-auto mb-4 text-blue-500" />
-                  <h2 className="text-2xl font-bold text-white mb-2">
+                <div className={`glass-card max-w-md w-full ${inline ? "p-3" : "p-6"} text-center bg-black/60 backdrop-blur-xl border border-white/10`}>
+                  <Gamepad2 className={`${inline ? "w-8 h-8 mb-2" : "w-16 h-16 mb-4"} mx-auto text-blue-500`} />
+                  <h2 className={`${inline ? "text-sm" : "text-2xl"} font-bold text-white mb-1`}>
                     {title}
                   </h2>
-                  <p className="text-gray-300 mb-4">{instructions}</p>
+                  <p className={`text-gray-300 ${inline ? "text-xs mb-2" : "mb-4"}`}>{instructions}</p>
 
                   {/* Camera status banner */}
                   {cameraStatus === "denied" && (
-                    <div className="mb-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-start gap-2 text-left">
+                    <div className={`${inline ? "mb-2 p-2" : "mb-4 p-3"} rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-start gap-2 text-left`}>
                       <AlertTriangle
-                        size={18}
+                        size={inline ? 14 : 18}
                         className="text-orange-400 flex-shrink-0 mt-0.5"
                       />
                       <div>
-                        <p className="text-orange-400 text-sm font-medium">
+                        <p className={`text-orange-400 ${inline ? "text-xs" : "text-sm"} font-medium`}>
                           Camera access denied
                         </p>
-                        <p className="text-gray-400 text-xs mt-1">
-                          The game will work without the camera, but for the
-                          full AR experience, allow camera access in your browser
-                          settings.
-                        </p>
+                        {!inline && (
+                          <p className="text-gray-400 text-xs mt-1">
+                            The game will work without the camera, but for the
+                            full AR experience, allow camera access in your browser
+                            settings.
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
 
                   {cameraStatus === "unavailable" && (
-                    <div className="mb-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-start gap-2 text-left">
+                    <div className={`${inline ? "mb-2 p-2" : "mb-4 p-3"} rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-start gap-2 text-left`}>
                       <CameraOff
-                        size={18}
+                        size={inline ? 14 : 18}
                         className="text-orange-400 flex-shrink-0 mt-0.5"
                       />
                       <div>
-                        <p className="text-orange-400 text-sm font-medium">
+                        <p className={`text-orange-400 ${inline ? "text-xs" : "text-sm"} font-medium`}>
                           Camera not available
                         </p>
-                        <p className="text-gray-400 text-xs mt-1">
-                          No camera detected. The game will use a fallback
-                          background.
-                        </p>
+                        {!inline && (
+                          <p className="text-gray-400 text-xs mt-1">
+                            No camera detected. The game will use a fallback
+                            background.
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
 
                   {hasCamera && (
-                    <div className="mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center gap-2">
-                      <Camera size={18} className="text-green-400" />
-                      <p className="text-green-400 text-sm font-medium">
+                    <div className={`${inline ? "mb-2 p-2" : "mb-4 p-3"} rounded-lg bg-green-500/10 border border-green-500/30 flex items-center gap-2`}>
+                      <Camera size={inline ? 14 : 18} className="text-green-400" />
+                      <p className={`text-green-400 ${inline ? "text-xs" : "text-sm"} font-medium`}>
                         AR Camera ready
                       </p>
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-                    <div className="p-3 rounded-lg bg-white/10">
-                      <Target className="w-5 h-5 mx-auto mb-1 text-blue-500" />
-                      <p className="text-gray-400">Target</p>
-                      <p className="text-white font-bold">
-                        {arConfig.targetScore} pts
-                      </p>
+                  {!inline && (
+                    <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+                      <div className="p-3 rounded-lg bg-white/10">
+                        <Target className="w-5 h-5 mx-auto mb-1 text-blue-500" />
+                        <p className="text-gray-400">Target</p>
+                        <p className="text-white font-bold">
+                          {arConfig.targetScore} pts
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-white/10">
+                        <Clock className="w-5 h-5 mx-auto mb-1 text-green-500" />
+                        <p className="text-gray-400">Time</p>
+                        <p className="text-white font-bold">
+                          {arConfig.gameTime}s
+                        </p>
+                      </div>
                     </div>
-                    <div className="p-3 rounded-lg bg-white/10">
-                      <Clock className="w-5 h-5 mx-auto mb-1 text-green-500" />
-                      <p className="text-gray-400">Time</p>
-                      <p className="text-white font-bold">
-                        {arConfig.gameTime}s
-                      </p>
+                  )}
+
+                  {inline && (
+                    <div className="flex gap-2 justify-center mb-2 text-xs text-gray-400">
+                      <span>{arConfig.targetScore} pts target</span>
+                      <span>·</span>
+                      <span>{arConfig.gameTime}s</span>
                     </div>
-                  </div>
+                  )}
 
                   <button
                     onClick={handleStartGame}
-                    className="w-full px-6 py-4 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold text-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                    className={`w-full rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 ${inline ? "px-4 py-2.5 text-sm" : "px-6 py-4 text-lg"}`}
                   >
-                    <Play size={24} />
+                    <Play size={inline ? 16 : 24} />
                     Start Game
                   </button>
                 </div>
@@ -662,32 +680,32 @@ export function ARGameViewer({
                 animate={{ opacity: 1, scale: 1 }}
                 className="absolute inset-0 flex items-center justify-center p-4 pointer-events-auto"
               >
-                <div className="glass-card max-w-md w-full p-6 text-center bg-black/60 backdrop-blur-xl border border-white/10">
+                <div className={`glass-card max-w-md w-full ${inline ? "p-3" : "p-6"} text-center bg-black/60 backdrop-blur-xl border border-white/10`}>
                   <Trophy
-                    className={`w-20 h-20 mx-auto mb-4 ${
+                    className={`${inline ? "w-10 h-10 mb-2" : "w-20 h-20 mb-4"} mx-auto ${
                       isWinner ? "text-yellow-500" : "text-gray-500"
                     }`}
                   />
-                  <h2 className="text-3xl font-bold text-white mb-2">
+                  <h2 className={`${inline ? "text-base" : "text-3xl"} font-bold text-white mb-1`}>
                     {isWinner ? "You Won!" : "Game Over"}
                   </h2>
-                  <p className="text-gray-300 mb-6">
-                    Final Score:{" "}
-                    <span className="text-2xl font-bold text-white">
+                  <p className={`text-gray-300 ${inline ? "mb-3 text-sm" : "mb-6"}`}>
+                    Score:{" "}
+                    <span className={`${inline ? "text-base" : "text-2xl"} font-bold text-white`}>
                       {score}
                     </span>
                   </p>
 
-                  <div className="flex gap-3">
+                  <div className="flex gap-2">
                     <button
                       onClick={handleRestart}
-                      className="flex-1 px-6 py-3 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors"
+                      className={`flex-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors ${inline ? "px-3 py-2 text-xs" : "px-6 py-3"}`}
                     >
                       Play Again
                     </button>
                     <button
                       onClick={handleCloseGame}
-                      className="flex-1 px-6 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold hover:opacity-90 transition-opacity"
+                      className={`flex-1 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold hover:opacity-90 transition-opacity ${inline ? "px-3 py-2 text-xs" : "px-6 py-3"}`}
                     >
                       Done
                     </button>

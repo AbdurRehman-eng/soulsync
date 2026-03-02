@@ -207,8 +207,7 @@ export function SandboxedIframe({
       // Extra security headers via attributes
       referrerPolicy="no-referrer"
       loading="lazy"
-      // Block feature policy items
-      allow="autoplay; fullscreen"
+      allow="autoplay; fullscreen; camera; accelerometer; gyroscope"
     />
   );
 }

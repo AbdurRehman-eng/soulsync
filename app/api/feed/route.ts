@@ -590,28 +590,57 @@ export async function GET(request: NextRequest) {
     // SLOT 20: Pause Card (always last)
     // ============================================
     let pauseCard: Card | null = null;
-    // Check for date-specific pause card first
+    // Check for scheduled (date-specific) pause card first
     const datePauseCard = pauseCards.find((pc) => {
-      if (!pc.card) return false;
+      if (!pc.card || !pc.card.is_active) return false;
+      if (pc.is_default) return false;
       const start = pc.active_start;
       const end = pc.active_end;
+      // Must have at least one date to be a scheduled override
+      if (!start && !end) return false;
       if (start && today < start) return false;
       if (end && today > end) return false;
-      return !pc.is_default;
+      return true;
     });
 
     if (datePauseCard?.card) {
       pauseCard = datePauseCard.card;
     } else {
       // Fallback to default pause card
-      const defaultPause = pauseCards.find((pc) => pc.is_default && pc.card);
+      const defaultPause = pauseCards.find((pc) => pc.is_default && pc.card && pc.card.is_active);
       if (defaultPause?.card) {
         pauseCard = defaultPause.card;
       } else {
         // Synthesize a pause card if none exist in DB
-        pauseCard = pickCardByType(
-          cardsByType, ["pause" as CardType], usedCardIds, cooledDownCardIds, seed, 20
-        );
+        pauseCard = {
+          id: "synthetic-pause",
+          type: "pause" as CardType,
+          title: "Time to Pause",
+          subtitle: null,
+          content: {
+            pause_message: "You've reached the end of today's feed. Take a moment to breathe and reflect.",
+            pause_type: "default",
+            pause_cta_text: "See you tomorrow",
+          },
+          thumbnail_url: null,
+          background_url: null,
+          min_membership_level: 1,
+          points_reward: 0,
+          is_active: true,
+          is_pinned: false,
+          pin_position: null,
+          pin_start: null,
+          pin_end: null,
+          publish_date: null,
+          sort_order: 999,
+          is_featured: false,
+          is_trending: false,
+          featured_start: null,
+          featured_end: null,
+          category_id: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
       }
     }
 
