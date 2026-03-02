@@ -26,8 +26,15 @@ export default function LikesPage() {
       const response = await fetch("/api/interactions?type=like");
       if (response.ok) {
         const data = await response.json();
-        console.log(`[Likes Page] Loaded ${data.cards?.length || 0} liked cards`);
-        setLikedCards(data.cards || []);
+        const raw: Card[] = data.cards || [];
+        const seen = new Set<string>();
+        const unique = raw.filter((c) => {
+          if (seen.has(c.id)) return false;
+          seen.add(c.id);
+          return true;
+        });
+        console.log(`[Likes Page] Loaded ${unique.length} liked cards`);
+        setLikedCards(unique);
       } else {
         console.error("[Likes Page] Failed to fetch:", response.status);
       }

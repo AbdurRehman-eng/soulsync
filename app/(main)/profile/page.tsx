@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  ArrowLeft,
   User,
   Camera,
   Edit2,
@@ -17,11 +18,13 @@ import {
   Award,
   Target,
   Share2,
+  Heart,
   CheckCircle2,
   Loader2,
   Copy,
   Check,
 } from "lucide-react";
+import Link from "next/link";
 import { useUserStore } from "@/stores/userStore";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -43,6 +46,13 @@ export default function ProfilePage() {
     text: string;
   } | null>(null);
   const [copiedReferral, setCopiedReferral] = useState(false);
+  const [activityStats, setActivityStats] = useState<{
+    likes: number;
+    completed: number;
+    shares: number;
+    referrals: number;
+  } | null>(null);
+  const [activityLoading, setActivityLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -50,6 +60,63 @@ export default function ProfilePage() {
       router.push("/login");
     }
   }, [isAuthenticated, router]);
+
+  const fetchActivityStats = useCallback(async () => {
+    if (!profile?.id) return;
+    setActivityLoading(true);
+    try {
+      const supabase = createClient();
+      const [likesRes, completedRes, sharesRes, referralsRes] =
+        await Promise.allSettled([
+          supabase
+            .from("card_interactions")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", profile.id)
+            .eq("interaction_type", "like"),
+          supabase
+            .from("card_interactions")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", profile.id)
+            .eq("interaction_type", "complete"),
+          supabase
+            .from("share_tracking")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", profile.id),
+          supabase
+            .from("profiles")
+            .select("*", { count: "exact", head: true })
+            .eq("referred_by", profile.id),
+        ]);
+
+      setActivityStats({
+        likes:
+          likesRes.status === "fulfilled" ? likesRes.value.count ?? 0 : 0,
+        completed:
+          completedRes.status === "fulfilled"
+            ? completedRes.value.count ?? 0
+            : 0,
+        shares:
+          sharesRes.status === "fulfilled" ? sharesRes.value.count ?? 0 : 0,
+        referrals:
+          referralsRes.status === "fulfilled"
+            ? referralsRes.value.count ?? 0
+            : 0,
+      });
+    } catch {
+      setActivityStats({
+        likes: 0,
+        completed: 0,
+        shares: profile.total_shares || 0,
+        referrals: profile.total_referrals || 0,
+      });
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [profile?.id, profile?.total_shares, profile?.total_referrals]);
+
+  useEffect(() => {
+    fetchActivityStats();
+  }, [fetchActivityStats]);
 
   useEffect(() => {
     if (profile) {
@@ -91,14 +158,18 @@ export default function ProfilePage() {
     setIsUploadingImage(true);
 
     try {
-      // Use API route for upload (handles storage permissions server-side)
       const formData = new FormData();
       formData.append("file", file);
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
 
       const response = await fetch("/api/profile/upload", {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       const data = await response.json();
 
@@ -106,14 +177,16 @@ export default function ProfilePage() {
         throw new Error(data.error || "Failed to upload image");
       }
 
-      // Update local state with new avatar URL
       setProfile({ ...profile, avatar_url: data.avatar_url });
 
       setSaveMessage({ type: "success", text: "Profile image updated!" });
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (error: any) {
       console.error("Image upload error:", error);
-      const errorMessage = error?.message || "Failed to upload image";
+      const errorMessage =
+        error?.name === "AbortError"
+          ? "Upload timed out. Please try again."
+          : error?.message || "Failed to upload image";
       setSaveMessage({ type: "error", text: errorMessage });
       setTimeout(() => setSaveMessage(null), 3000);
     } finally {
@@ -144,14 +217,15 @@ export default function ProfilePage() {
         display_name: editForm.display_name || null,
       };
 
-      const { error } = await supabase
-        .from("profiles")
-        .update(updates)
-        .eq("id", profile.id);
+      const result = await Promise.race([
+        supabase.from("profiles").update(updates).eq("id", profile.id),
+        new Promise<{ error: { code: string; message: string } }>((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 8000)
+        ),
+      ]);
 
-      if (error) throw error;
+      if (result.error) throw result.error;
 
-      // Update local state
       setProfile({ ...profile, ...updates });
 
       setSaveMessage({ type: "success", text: "Profile updated successfully!" });
@@ -160,9 +234,10 @@ export default function ProfilePage() {
     } catch (error: any) {
       console.error("Profile update error:", error);
 
-      // Check if it's a unique constraint error
       if (error.code === "23505") {
         setSaveMessage({ type: "error", text: "Username already taken" });
+      } else if (error.message === "timeout") {
+        setSaveMessage({ type: "error", text: "Save timed out. Please try again." });
       } else {
         setSaveMessage({ type: "error", text: "Failed to update profile" });
       }
@@ -242,14 +317,24 @@ export default function ProfilePage() {
 
   const additionalStats = [
     {
+      icon: Heart,
+      label: "Liked",
+      value: activityStats?.likes ?? 0,
+    },
+    {
+      icon: CheckCircle2,
+      label: "Completed",
+      value: activityStats?.completed ?? 0,
+    },
+    {
       icon: Share2,
       label: "Shares",
-      value: profile.total_shares || 0,
+      value: activityStats?.shares ?? (profile.total_shares || 0),
     },
     {
       icon: Target,
       label: "Referrals",
-      value: profile.total_referrals || 0,
+      value: activityStats?.referrals ?? (profile.total_referrals || 0),
     },
     {
       icon: Calendar,
@@ -259,7 +344,7 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="px-2 sm:px-4">
+    <div className="px-2 sm:px-4 pb-20">
       {/* Save message toast */}
       <AnimatePresence>
         {saveMessage && (
@@ -285,7 +370,15 @@ export default function ProfilePage() {
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold">Profile</h1>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/more"
+            className="p-2 -ml-2 hover:bg-muted/30 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <h1 className="text-xl sm:text-2xl font-bold">Profile</h1>
+        </div>
         {!isEditing ? (
           <button
             onClick={() => setIsEditing(true)}
@@ -465,22 +558,28 @@ export default function ProfilePage() {
         <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">
           Activity
         </h3>
-        <div className="space-y-3">
-          {additionalStats.map((stat, index) => (
-            <div
-              key={stat.label}
-              className="flex items-center justify-between py-2"
-            >
-              <div className="flex items-center gap-3">
-                <stat.icon className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
-                <span className="text-sm sm:text-base">{stat.label}</span>
+        {activityLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {additionalStats.map((stat) => (
+              <div
+                key={stat.label}
+                className="flex items-center justify-between py-2"
+              >
+                <div className="flex items-center gap-3">
+                  <stat.icon className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+                  <span className="text-sm sm:text-base">{stat.label}</span>
+                </div>
+                <span className="text-sm sm:text-base font-semibold">
+                  {stat.value}
+                </span>
               </div>
-              <span className="text-sm sm:text-base font-semibold">
-                {stat.value}
-              </span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </motion.div>
 
       {/* Referral Code Card */}
@@ -517,33 +616,67 @@ export default function ProfilePage() {
 
       {/* Progress Card (if XP system is enabled) */}
       {profile.xp !== undefined && profile.level && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="glass-card p-4 sm:p-6"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base sm:text-lg font-semibold">Level Progress</h3>
-            <span className="text-sm text-muted-foreground">
-              Level {profile.level}
-            </span>
-          </div>
-
-          {/* XP Progress Bar */}
-          <div className="relative h-3 bg-muted rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: "60%" }}
-              transition={{ duration: 1, delay: 0.5 }}
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-accent"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground mt-2 text-center">
-            {profile.xp?.toLocaleString() || 0} XP
-          </p>
-        </motion.div>
+        <XPProgressCard xp={profile.xp || 0} level={profile.level} />
       )}
     </div>
+  );
+}
+
+function XPProgressCard({ xp, level }: { xp: number; level: number }) {
+  const [nextLevelXP, setNextLevelXP] = useState<number | null>(null);
+  const [currentLevelXP, setCurrentLevelXP] = useState(0);
+
+  useEffect(() => {
+    const supabase = createClient();
+    Promise.all([
+      supabase
+        .from("levels")
+        .select("xp_required")
+        .eq("level_number", level)
+        .maybeSingle(),
+      supabase
+        .from("levels")
+        .select("xp_required")
+        .eq("level_number", level + 1)
+        .maybeSingle(),
+    ]).then(([currentRes, nextRes]) => {
+      setCurrentLevelXP(currentRes.data?.xp_required || 0);
+      setNextLevelXP(nextRes.data?.xp_required ?? null);
+    }).catch(() => {});
+  }, [level]);
+
+  const progress = useMemo(() => {
+    if (nextLevelXP === null) return 100;
+    const range = nextLevelXP - currentLevelXP;
+    if (range <= 0) return 100;
+    return Math.min(100, Math.max(0, ((xp - currentLevelXP) / range) * 100));
+  }, [xp, currentLevelXP, nextLevelXP]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.4 }}
+      className="glass-card p-4 sm:p-6"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-base sm:text-lg font-semibold">Level Progress</h3>
+        <span className="text-sm text-muted-foreground">
+          Level {level}
+        </span>
+      </div>
+
+      <div className="relative h-3 bg-muted rounded-full overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 1, delay: 0.5 }}
+          className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-accent"
+        />
+      </div>
+      <p className="text-xs text-muted-foreground mt-2 text-center">
+        {xp.toLocaleString()} {nextLevelXP !== null ? `/ ${nextLevelXP.toLocaleString()}` : ""} XP
+      </p>
+    </motion.div>
   );
 }

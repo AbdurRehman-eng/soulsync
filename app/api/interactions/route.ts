@@ -165,9 +165,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const seen = new Set<string>();
     const cards = interactions
       ?.map((i) => i.card)
-      .filter((c) => c !== null);
+      .filter((c): c is NonNullable<typeof c> => {
+        if (!c || seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      });
 
     console.log(`[Interactions API] GET request - returning ${cards?.length || 0} ${type} interactions for user ${user.id}`);
 
