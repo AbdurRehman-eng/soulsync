@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Shield } from "lucide-react";
+import { ArrowLeft, Shield } from "lucide-react";
+import Link from "next/link";
 
 const sections = [
   {
@@ -64,14 +65,22 @@ const sections = [
 export default function PrivacyPage() {
   return (
     <div className="px-4 pb-20">
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <Shield className="w-6 h-6 text-primary" />
-          <h1 className="text-2xl font-bold">Privacy Policy</h1>
+      <div className="flex items-center gap-3 mb-6">
+        <Link
+          href="/more"
+          className="p-2 -ml-2 hover:bg-muted/30 rounded-lg transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <div>
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            <h1 className="text-2xl font-bold">Privacy Policy</h1>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Last updated: March 2026
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Last updated: March 2026
-        </p>
       </div>
 
       {/* Intro */}

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import {
+  ArrowLeft,
   Bell,
   BellOff,
   BellRing,
@@ -16,6 +17,7 @@ import {
   AlertTriangle,
   Send,
 } from "lucide-react";
+import Link from "next/link";
 
 const STORAGE_KEY = "soul-sync-notif-prefs";
 
@@ -184,11 +186,19 @@ export default function NotificationsPage() {
 
   return (
     <div className="px-4 pb-20">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1">Notifications</h1>
-        <p className="text-sm text-muted-foreground">
-          Choose what you want to be notified about
-        </p>
+      <div className="flex items-center gap-3 mb-6">
+        <Link
+          href="/more"
+          className="p-2 -ml-2 hover:bg-muted/30 rounded-lg transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold">Notifications</h1>
+          <p className="text-sm text-muted-foreground">
+            Choose what you want to be notified about
+          </p>
+        </div>
       </div>
 
       {/* Permission banner */}

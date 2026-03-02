@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Mail, MessageCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, Mail, MessageCircle, CheckCircle2, Loader2 } from "lucide-react";
+import Link from "next/link";
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
@@ -46,11 +47,19 @@ export default function ContactPage() {
 
   return (
     <div className="px-4 pb-20">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1">Contact Us</h1>
-        <p className="text-sm text-muted-foreground">
-          We'd love to hear from you
-        </p>
+      <div className="flex items-center gap-3 mb-6">
+        <Link
+          href="/more"
+          className="p-2 -ml-2 hover:bg-muted/30 rounded-lg transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold">Contact Us</h1>
+          <p className="text-sm text-muted-foreground">
+            We&apos;d love to hear from you
+          </p>
+        </div>
       </div>
 
       {/* Quick options */}

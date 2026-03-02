@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { HelpCircle, ChevronDown, BookOpen, Gamepad2, Trophy, Shield, MessageCircle } from "lucide-react";
+import { ArrowLeft, HelpCircle, ChevronDown, BookOpen, Gamepad2, Trophy, Shield, MessageCircle } from "lucide-react";
 import Link from "next/link";
 
 const faqSections = [
@@ -86,11 +86,19 @@ export default function HelpPage() {
 
   return (
     <div className="px-4 pb-20">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1">Help Center</h1>
-        <p className="text-sm text-muted-foreground">
-          Frequently asked questions and guides
-        </p>
+      <div className="flex items-center gap-3 mb-6">
+        <Link
+          href="/more"
+          className="p-2 -ml-2 hover:bg-muted/30 rounded-lg transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold">Help Center</h1>
+          <p className="text-sm text-muted-foreground">
+            Frequently asked questions and guides
+          </p>
+        </div>
       </div>
 
       {/* FAQ sections */}

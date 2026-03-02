@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import {
+  ArrowLeft,
   Palette,
   Globe,
   Trash2,
@@ -13,6 +14,7 @@ import {
   Check,
   Loader2,
 } from "lucide-react";
+import Link from "next/link";
 import { useThemeStore, themes, ThemeSlug } from "@/stores/themeStore";
 import { useUserStore } from "@/stores/userStore";
 import { createClient } from "@/lib/supabase/client";
@@ -28,24 +30,30 @@ export default function SettingsPage() {
   const handleClearCache = async () => {
     setClearingCache(true);
     try {
-      const res = await fetch("/api/feed/clear-cache", { method: "POST" });
-      const ok = res.ok;
-
+      // Clear local caches immediately (fast, no network needed)
+      localStorage.removeItem("soul-sync-feed-cache");
       if ("caches" in window) {
         const keys = await caches.keys();
         await Promise.all(keys.map((k) => caches.delete(k)));
       }
-      localStorage.removeItem("soul-sync-feed-cache");
 
-      if (ok) {
-        toast.success("Cache cleared! Your feed will refresh with new content.");
-      } else {
-        toast.success("Local cache cleared. Sign in to also clear server cache.");
-      }
+      // Try server cache with a 5s timeout -- don't block on slow network
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        await fetch("/api/feed/clear-cache", {
+          method: "POST",
+          signal: controller.signal,
+        });
+      } catch {}
+      clearTimeout(timeout);
+
+      toast.success("Cache cleared! Your feed will refresh with new content.");
     } catch {
       toast.error("Failed to clear cache. Please try again.");
+    } finally {
+      setClearingCache(false);
     }
-    setClearingCache(false);
   };
 
   const handleExportData = async () => {
@@ -58,42 +66,57 @@ export default function SettingsPage() {
     try {
       const supabase = createClient();
 
-      const [
-        { data: interactions },
-        { data: moodLogs },
-        { data: journals },
-        { data: rewards },
-        { data: tasks },
-      ] = await Promise.all([
-        supabase
-          .from("card_interactions")
-          .select("interaction_type, card_id, created_at")
-          .eq("user_id", profile.id)
-          .order("created_at", { ascending: false })
-          .limit(1000),
-        supabase
-          .from("mood_logs")
-          .select("mood_id, logged_at")
-          .eq("user_id", profile.id)
-          .order("logged_at", { ascending: false })
-          .limit(500),
-        supabase
-          .from("journal_entries")
-          .select("content, created_at")
-          .eq("user_id", profile.id)
-          .order("created_at", { ascending: false })
-          .limit(500),
-        supabase
-          .from("user_rewards")
-          .select("reward_id, claimed_at")
-          .eq("user_id", profile.id)
-          .limit(500),
-        supabase
-          .from("user_tasks")
-          .select("task_id, status, completed_at, created_at")
-          .eq("user_id", profile.id)
-          .limit(500),
+      const withTimeout = <T,>(promise: Promise<T>, ms = 8000): Promise<T> =>
+        Promise.race([
+          promise,
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), ms)
+          ),
+        ]);
+
+      const results = await Promise.allSettled([
+        withTimeout(
+          supabase
+            .from("card_interactions")
+            .select("interaction_type, card_id, created_at")
+            .eq("user_id", profile.id)
+            .order("created_at", { ascending: false })
+            .limit(1000)
+        ),
+        withTimeout(
+          supabase
+            .from("mood_logs")
+            .select("mood_id, logged_at")
+            .eq("user_id", profile.id)
+            .order("logged_at", { ascending: false })
+            .limit(500)
+        ),
+        withTimeout(
+          supabase
+            .from("journal_entries")
+            .select("content, created_at")
+            .eq("user_id", profile.id)
+            .order("created_at", { ascending: false })
+            .limit(500)
+        ),
+        withTimeout(
+          supabase
+            .from("user_rewards")
+            .select("reward_id, claimed_at")
+            .eq("user_id", profile.id)
+            .limit(500)
+        ),
+        withTimeout(
+          supabase
+            .from("user_tasks")
+            .select("task_id, status, completed_at, created_at")
+            .eq("user_id", profile.id)
+            .limit(500)
+        ),
       ]);
+
+      const extract = (r: PromiseSettledResult<any>) =>
+        r.status === "fulfilled" ? r.value?.data || [] : [];
 
       const exportData = {
         exported_at: new Date().toISOString(),
@@ -106,11 +129,11 @@ export default function SettingsPage() {
           longest_streak: profile.longest_streak,
           created_at: profile.created_at,
         },
-        interactions: interactions || [],
-        mood_logs: moodLogs || [],
-        journal_entries: journals || [],
-        rewards: rewards || [],
-        tasks: tasks || [],
+        interactions: extract(results[0]),
+        mood_logs: extract(results[1]),
+        journal_entries: extract(results[2]),
+        rewards: extract(results[3]),
+        tasks: extract(results[4]),
       };
 
       const blob = new Blob([JSON.stringify(exportData, null, 2)], {
@@ -128,8 +151,9 @@ export default function SettingsPage() {
       toast.success("Data exported successfully!");
     } catch {
       toast.error("Failed to export data. Please try again.");
+    } finally {
+      setExporting(false);
     }
-    setExporting(false);
   };
 
   const handleDeleteAccount = async () => {
@@ -151,11 +175,19 @@ export default function SettingsPage() {
 
   return (
     <div className="px-4 pb-20">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-1">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Customise your Soul Sync experience
-        </p>
+      <div className="flex items-center gap-3 mb-6">
+        <Link
+          href="/more"
+          className="p-2 -ml-2 hover:bg-muted/30 rounded-lg transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold">Settings</h1>
+          <p className="text-sm text-muted-foreground">
+            Customise your Soul Sync experience
+          </p>
+        </div>
       </div>
 
       {/* Theme section */}
