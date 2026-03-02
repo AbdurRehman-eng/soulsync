@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import toast from "react-hot-toast";
 import {
   Palette,
   Globe,
@@ -9,41 +10,139 @@ import {
   Download,
   RefreshCw,
   AlertTriangle,
-  ChevronRight,
   Check,
+  Loader2,
 } from "lucide-react";
 import { useThemeStore, themes, ThemeSlug } from "@/stores/themeStore";
 import { useUserStore } from "@/stores/userStore";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useThemeStore();
   const { profile, isAuthenticated, logout } = useUserStore();
-  const router = useRouter();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleClearCache = async () => {
     setClearingCache(true);
     try {
-      await fetch("/api/feed/clear-cache", { method: "POST" });
+      const res = await fetch("/api/feed/clear-cache", { method: "POST" });
+      const ok = res.ok;
+
       if ("caches" in window) {
         const keys = await caches.keys();
         await Promise.all(keys.map((k) => caches.delete(k)));
       }
       localStorage.removeItem("soul-sync-feed-cache");
-    } catch {}
+
+      if (ok) {
+        toast.success("Cache cleared! Your feed will refresh with new content.");
+      } else {
+        toast.success("Local cache cleared. Sign in to also clear server cache.");
+      }
+    } catch {
+      toast.error("Failed to clear cache. Please try again.");
+    }
     setClearingCache(false);
+  };
+
+  const handleExportData = async () => {
+    if (!isAuthenticated || !profile) {
+      toast.error("Sign in to export your data.");
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const supabase = createClient();
+
+      const [
+        { data: interactions },
+        { data: moodLogs },
+        { data: journals },
+        { data: rewards },
+        { data: tasks },
+      ] = await Promise.all([
+        supabase
+          .from("card_interactions")
+          .select("interaction_type, card_id, created_at")
+          .eq("user_id", profile.id)
+          .order("created_at", { ascending: false })
+          .limit(1000),
+        supabase
+          .from("mood_logs")
+          .select("mood_id, logged_at")
+          .eq("user_id", profile.id)
+          .order("logged_at", { ascending: false })
+          .limit(500),
+        supabase
+          .from("journal_entries")
+          .select("content, created_at")
+          .eq("user_id", profile.id)
+          .order("created_at", { ascending: false })
+          .limit(500),
+        supabase
+          .from("user_rewards")
+          .select("reward_id, claimed_at")
+          .eq("user_id", profile.id)
+          .limit(500),
+        supabase
+          .from("user_tasks")
+          .select("task_id, status, completed_at, created_at")
+          .eq("user_id", profile.id)
+          .limit(500),
+      ]);
+
+      const exportData = {
+        exported_at: new Date().toISOString(),
+        profile: {
+          username: profile.username,
+          display_name: profile.display_name,
+          membership_level: profile.membership_level,
+          points: profile.points,
+          current_streak: profile.current_streak,
+          longest_streak: profile.longest_streak,
+          created_at: profile.created_at,
+        },
+        interactions: interactions || [],
+        mood_logs: moodLogs || [],
+        journal_entries: journals || [],
+        rewards: rewards || [],
+        tasks: tasks || [],
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `soul-sync-data-${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success("Data exported successfully!");
+    } catch {
+      toast.error("Failed to export data. Please try again.");
+    }
+    setExporting(false);
   };
 
   const handleDeleteAccount = async () => {
     if (!isAuthenticated) return;
+    setDeleting(true);
     try {
       const supabase = createClient();
       await supabase.auth.signOut();
       logout();
-      window.location.href = "/";
+      toast.success("Account signed out. Contact support to fully delete your data.");
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1500);
     } catch {
       logout();
       window.location.href = "/";
@@ -71,7 +170,10 @@ export default function SettingsPage() {
             {(Object.keys(themes) as ThemeSlug[]).map((themeKey) => (
               <button
                 key={themeKey}
-                onClick={() => setTheme(themeKey)}
+                onClick={() => {
+                  setTheme(themeKey);
+                  toast.success(`Theme changed to ${themes[themeKey].name}`);
+                }}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
                   theme === themeKey
                     ? "bg-primary/20 border border-primary"
@@ -104,7 +206,11 @@ export default function SettingsPage() {
             disabled={clearingCache}
             className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors disabled:opacity-50"
           >
-            <RefreshCw className={`w-5 h-5 text-muted-foreground ${clearingCache ? "animate-spin" : ""}`} />
+            {clearingCache ? (
+              <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+            ) : (
+              <RefreshCw className="w-5 h-5 text-muted-foreground" />
+            )}
             <div className="flex-1 text-left">
               <p className="text-sm font-medium">Clear Cache</p>
               <p className="text-xs text-muted-foreground">
@@ -113,15 +219,22 @@ export default function SettingsPage() {
             </div>
           </button>
           <div className="h-px bg-border mx-4" />
-          <button className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors">
-            <Download className="w-5 h-5 text-muted-foreground" />
+          <button
+            onClick={handleExportData}
+            disabled={exporting}
+            className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors disabled:opacity-50"
+          >
+            {exporting ? (
+              <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+            ) : (
+              <Download className="w-5 h-5 text-muted-foreground" />
+            )}
             <div className="flex-1 text-left">
               <p className="text-sm font-medium">Export Data</p>
               <p className="text-xs text-muted-foreground">
                 Download a copy of your account data
               </p>
             </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
       </section>
@@ -130,14 +243,17 @@ export default function SettingsPage() {
       <section className="mb-6">
         <h3 className="text-sm text-muted-foreground mb-2 px-1">Language</h3>
         <div className="glass-card overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3.5">
+          <button
+            onClick={() => toast("More languages coming soon!", { icon: "\ud83c\udf10" })}
+            className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors"
+          >
             <Globe className="w-5 h-5 text-muted-foreground" />
-            <div className="flex-1">
+            <div className="flex-1 text-left">
               <p className="text-sm font-medium">Language</p>
               <p className="text-xs text-muted-foreground">English (UK)</p>
             </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          </div>
+            <span className="text-xs text-muted-foreground">English</span>
+          </button>
         </div>
       </section>
 
@@ -172,22 +288,31 @@ export default function SettingsPage() {
                       Are you sure?
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      This will permanently delete your account, progress, streaks, and all saved content. This action cannot be undone.
+                      This will sign you out and request account deletion. Your progress, streaks, and saved content will be removed. This action cannot be undone.
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted/30"
+                    disabled={deleting}
+                    className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted/30 disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleDeleteAccount}
-                    className="flex-1 py-2.5 rounded-xl bg-destructive text-destructive-foreground text-sm font-medium hover:opacity-90"
+                    disabled={deleting}
+                    className="flex-1 py-2.5 rounded-xl bg-destructive text-destructive-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    Delete Account
+                    {deleting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      "Delete Account"
+                    )}
                   </button>
                 </div>
               </motion.div>

@@ -80,8 +80,7 @@ async function showNotification(title: string, body: string) {
           body,
           icon: "/icons/icon-192x192.png",
           badge: "/icons/icon-96x96.png",
-          vibrate: [100, 50, 100],
-        });
+        } as NotificationOptions);
         return true;
       }
     } catch {}
