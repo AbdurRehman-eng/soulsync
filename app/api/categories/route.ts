@@ -21,73 +21,75 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get card counts per category using card_categories junction table
-    const categoriesWithCounts = await Promise.all(
-      (categories || []).map(async (cat) => {
-        const { count } = await supabase
-          .from("card_categories")
-          .select("*", { count: "exact", head: true })
-          .eq("category_id", cat.id);
+    const typeMap: Record<string, string[]> = {
+      "arena": ["game"],
+      "mind-quests": ["quiz"],
+      "joy-moments": ["meme"],
+      "share-cards": ["share_card"],
+      "insights": ["article", "devotional"],
+      "deep-dive": ["thought_provoking"],
+      "calm-corner": ["visual"],
+      "gems": ["fact"],
+      "enigmas": ["riddle"],
+      "light-hearts": ["joke"],
+      "reflections": ["journal", "journal_prompt"],
+      "boosts": ["prayer"],
+    };
 
-        // Also count cards that match the category by type mapping
-        const typeMap: Record<string, string[]> = {
-          "arena": ["game"],
-          "mind-quests": ["quiz"],
-          "joy-moments": ["meme"],
-          "share-cards": ["share_card"],
-          "insights": ["article", "devotional"],
-          "deep-dive": ["thought_provoking"],
-          "calm-corner": ["visual"],
-          "gems": ["fact"],
-          "enigmas": ["riddle"],
-          "light-hearts": ["joke"],
-          "reflections": ["journal", "journal_prompt"],
-          "boosts": ["prayer"],
-        };
-
-        const types = typeMap[cat.slug] || [];
-        let typeCount = 0;
-        if (types.length > 0) {
-          const { count: tc } = await supabase
-            .from("cards")
-            .select("*", { count: "exact", head: true })
-            .eq("is_active", true)
-            .in("type", types);
-          typeCount = tc || 0;
-        }
-
-        return {
-          ...cat,
-          card_count: (count || 0) + typeCount,
-        };
-      })
-    );
-
-    // Fetch featured cards (within date range)
+    const catIds = (categories || []).map((c) => c.id);
+    const allTypes = [...new Set(Object.values(typeMap).flat())];
     const today = new Date().toISOString().split("T")[0];
-    const { data: featuredCards } = await supabase
-      .from("cards")
-      .select("*")
-      .eq("is_active", true)
-      .eq("is_featured", true)
-      .or(`featured_start.is.null,featured_start.lte.${today}`)
-      .or(`featured_end.is.null,featured_end.gte.${today}`)
-      .order("created_at", { ascending: false })
-      .limit(10);
 
-    // Fetch trending cards
-    const { data: trendingCards } = await supabase
-      .from("cards")
-      .select("*")
-      .eq("is_active", true)
-      .eq("is_trending", true)
-      .order("created_at", { ascending: false })
-      .limit(10);
+    // Batch: fetch junction counts, type counts, featured, and trending in parallel
+    const [junctionResult, typeCountResult, featuredResult, trendingResult] = await Promise.all([
+      catIds.length > 0
+        ? supabase.from("card_categories").select("category_id").in("category_id", catIds)
+        : Promise.resolve({ data: [] as any[] }),
+      allTypes.length > 0
+        ? supabase.from("cards").select("type").eq("is_active", true).in("type", allTypes)
+        : Promise.resolve({ data: [] as any[] }),
+      supabase
+        .from("cards")
+        .select("*")
+        .eq("is_active", true)
+        .eq("is_featured", true)
+        .or(`featured_start.is.null,featured_start.lte.${today}`)
+        .or(`featured_end.is.null,featured_end.gte.${today}`)
+        .order("created_at", { ascending: false })
+        .limit(10),
+      supabase
+        .from("cards")
+        .select("*")
+        .eq("is_active", true)
+        .eq("is_trending", true)
+        .order("created_at", { ascending: false })
+        .limit(10),
+    ]);
+
+    // Count junction rows per category
+    const junctionCounts = new Map<string, number>();
+    for (const row of (junctionResult.data || [])) {
+      junctionCounts.set(row.category_id, (junctionCounts.get(row.category_id) || 0) + 1);
+    }
+
+    // Count cards per type
+    const typeCounts = new Map<string, number>();
+    for (const row of (typeCountResult.data || [])) {
+      typeCounts.set(row.type, (typeCounts.get(row.type) || 0) + 1);
+    }
+
+    // Merge counts into categories
+    const categoriesWithCounts = (categories || []).map((cat) => {
+      const jCount = junctionCounts.get(cat.id) || 0;
+      const types = typeMap[cat.slug] || [];
+      const tCount = types.reduce((sum, t) => sum + (typeCounts.get(t) || 0), 0);
+      return { ...cat, card_count: jCount + tCount };
+    });
 
     return NextResponse.json({
       categories: categoriesWithCounts,
-      featured: featuredCards || [],
-      trending: trendingCards || [],
+      featured: featuredResult.data || [],
+      trending: trendingResult.data || [],
     });
   } catch (error) {
     console.error("Categories API error:", error);
