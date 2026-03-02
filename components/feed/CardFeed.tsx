@@ -22,6 +22,7 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const viewedCardsRef = useRef<Set<string>>(new Set());
+  const authFailedRef = useRef(false);
 
   // Get current mood from store
   const { currentMood } = useMoodStore();
@@ -107,6 +108,20 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
     }
   };
 
+  const postInteraction = useCallback(async (cardId: string, type: string) => {
+    if (authFailedRef.current) return;
+    try {
+      const res = await fetch("/api/interactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ card_id: cardId, type }),
+      });
+      if (res.status === 401) authFailedRef.current = true;
+    } catch {
+      // Network error — silently ignore
+    }
+  }, []);
+
   const handleLike = useCallback((cardId: string) => {
     setLikedCards((prev) => {
       const newSet = new Set(prev);
@@ -117,29 +132,16 @@ export function CardFeed({ initialCards = [] }: CardFeedProps) {
       }
       return newSet;
     });
-
-    fetch("/api/interactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ card_id: cardId, type: "like" }),
-    }).catch(console.error);
-  }, []);
+    postInteraction(cardId, "like");
+  }, [postInteraction]);
 
   const handleShare = useCallback((cardId: string) => {
-    fetch("/api/interactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ card_id: cardId, type: "share" }),
-    }).catch(console.error);
-  }, []);
+    postInteraction(cardId, "share");
+  }, [postInteraction]);
 
   const handleView = useCallback((cardId: string) => {
-    fetch("/api/interactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ card_id: cardId, type: "view" }),
-    }).catch(console.error);
-  }, []);
+    postInteraction(cardId, "view");
+  }, [postInteraction]);
 
   // Only render cards within the visible window (±RENDER_WINDOW of currentIndex)
   const visibleRange = useMemo(() => {

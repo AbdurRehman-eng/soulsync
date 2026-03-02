@@ -73,12 +73,17 @@ export function ARGameViewer({
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playErr: any) {
+          if (playErr.name !== "AbortError") throw playErr;
+        }
       }
 
       setCameraStatus("granted");
       setGameState("ready");
     } catch (err: any) {
+      if (err.name === "AbortError") return;
       console.error("Camera access error:", err);
       if (
         err.name === "NotAllowedError" ||
@@ -88,7 +93,6 @@ export function ARGameViewer({
       } else {
         setCameraStatus("unavailable");
       }
-      // Still allow playing without camera
       setGameState("ready");
     }
   }, []);

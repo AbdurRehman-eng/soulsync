@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, lazy, Suspense, type ComponentType } from "react";
+import { memo, lazy, Suspense, useState, type ComponentType } from "react";
 import { Lock } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { LikeButton } from "@/components/interactions/LikeButton";
@@ -64,6 +64,7 @@ export const FeedCard = memo(function FeedCard({
   const isLocked = card.min_membership_level > membershipLevel;
 
   const CardContent = getCardComponent(card.type);
+  const [isGameActive, setIsGameActive] = useState(false);
 
   return (
     <div
@@ -86,15 +87,17 @@ export const FeedCard = memo(function FeedCard({
         {/* Content area — scrollable so long content isn't clipped */}
         <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col justify-center min-h-0">
           <Suspense fallback={<CardContentSkeleton />}>
-            <CardContent card={card} isLocked={isLocked} />
+            <CardContent card={card} isLocked={isLocked} onPlayingChange={setIsGameActive} />
           </Suspense>
         </div>
 
-        {/* Bottom actions - always at the bottom */}
-        <div className="mt-auto pt-2 sm:pt-3 flex items-end justify-between flex-shrink-0 h-14 sm:h-16">
-          <LikeButton isLiked={isLiked} onLike={onLike} />
-          <ShareButton onShare={onShare} />
-        </div>
+        {/* Bottom actions - hidden when a game is actively playing */}
+        {!isGameActive && (
+          <div className="mt-auto pt-2 sm:pt-3 flex items-end justify-between flex-shrink-0 h-14 sm:h-16">
+            <LikeButton isLiked={isLiked} onLike={onLike} />
+            <ShareButton onShare={onShare} />
+          </div>
+        )}
       </div>
 
       {/* Locked overlay */}
@@ -123,7 +126,7 @@ export const FeedCard = memo(function FeedCard({
   );
 });
 
-function getCardComponent(type: Card["type"]): ComponentType<{ card: Card; isLocked: boolean }> {
+function getCardComponent(type: Card["type"]): ComponentType<{ card: Card; isLocked: boolean; onPlayingChange?: (playing: boolean) => void }> {
   switch (type) {
     case "verse":
       return VerseCard;
@@ -173,7 +176,7 @@ function getCardComponent(type: Card["type"]): ComponentType<{ card: Card; isLoc
   }
 }
 
-function DefaultCard({ card }: { card: Card; isLocked: boolean }) {
+function DefaultCard({ card }: { card: Card; isLocked: boolean; onPlayingChange?: (playing: boolean) => void }) {
   return (
     <div className="flex-1 flex flex-col justify-center">
       <h3 className="text-base sm:text-lg font-bold mb-2">{card.title}</h3>

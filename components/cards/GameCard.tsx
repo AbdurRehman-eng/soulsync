@@ -27,9 +27,10 @@ const ARGameViewer = dynamic(
 interface GameCardProps {
   card: Card;
   isLocked: boolean;
+  onPlayingChange?: (playing: boolean) => void;
 }
 
-export function GameCard({ card, isLocked }: GameCardProps) {
+export function GameCard({ card, isLocked, onPlayingChange }: GameCardProps) {
   const [showGame, setShowGame] = useState(false);
   const [gameData, setGameData] = useState<Game | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,6 +38,7 @@ export function GameCard({ card, isLocked }: GameCardProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
   const [completed, setCompleted] = useState(false);
+  const [hasPlayed, setHasPlayed] = useState(false);
   const supabase = useMemo(() => createClient(), []);
   const initialGameDataRef = useRef<Game | null | undefined>(card.game_data);
 
@@ -44,10 +46,30 @@ export function GameCard({ card, isLocked }: GameCardProps) {
     initialGameDataRef.current = card.game_data;
   }, [card.game_data]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+        const { data } = await supabase
+          .from("card_interactions")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("card_id", card.id)
+          .eq("interaction_type", "complete")
+          .limit(1);
+        if (!cancelled && data && data.length > 0) setHasPlayed(true);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [card.id, supabase]);
+
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isLocked || loading) return;
     setShowGame(true);
+    onPlayingChange?.(true);
     loadGame();
   };
 
@@ -105,6 +127,7 @@ export function GameCard({ card, isLocked }: GameCardProps) {
       setScore(finalScore);
       setIsPlaying(false);
       setCompleted(true);
+      setHasPlayed(true);
 
       try {
         const {
@@ -159,6 +182,7 @@ export function GameCard({ card, isLocked }: GameCardProps) {
     setError(null);
     setScore(0);
     setCompleted(false);
+    onPlayingChange?.(false);
   };
 
   const handleReplay = (e: React.MouseEvent) => {
@@ -219,8 +243,17 @@ export function GameCard({ card, isLocked }: GameCardProps) {
                 className="flex items-center gap-2 px-6 py-3 rounded-full text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg bg-gradient-to-r from-orange-500 to-red-500"
                 whileTap={{ scale: 0.95 }}
               >
-                <Play className="w-4 h-4" />
-                Play Now
+                {hasPlayed ? (
+                  <>
+                    <RotateCcw className="w-4 h-4" />
+                    Play Again
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    Play Now
+                  </>
+                )}
               </motion.button>
             </div>
           </motion.div>
