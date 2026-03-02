@@ -32,6 +32,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Reject non-UUID card IDs (e.g. synthetic cards)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(card_id) || card_id === "00000000-0000-0000-0000-000000000000") {
+      return NextResponse.json({ success: true, skipped: true });
+    }
+
     // Check if interaction already exists for likes (toggle behavior)
     if (type === "like") {
       const { data: existing } = await supabase
