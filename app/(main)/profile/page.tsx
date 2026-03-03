@@ -96,13 +96,9 @@ export default function ProfilePage() {
           .from("share_tracking")
           .select("*", { count: "exact", head: true })
           .eq("user_id", profile.id),
-        supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true })
-          .eq("referred_by", profile.id),
       ]);
 
-      const [likesRes, completedRes, sharesRes, referralsRes] =
+      const [likesRes, completedRes, sharesRes] =
         await Promise.race([queries, timeout]) as Awaited<typeof queries>;
 
       setActivityStats({
@@ -114,10 +110,8 @@ export default function ProfilePage() {
             : 0,
         shares:
           sharesRes.status === "fulfilled" ? sharesRes.value.count ?? 0 : 0,
-        referrals:
-          referralsRes.status === "fulfilled"
-            ? referralsRes.value.count ?? 0
-            : 0,
+        // Use profile field — cross-user query blocked by RLS
+        referrals: profile.total_referrals || 0,
       });
     } catch {
       setActivityStats({
@@ -129,7 +123,7 @@ export default function ProfilePage() {
     } finally {
       setActivityLoading(false);
     }
-  }, [profile?.id, profile?.total_shares, profile?.total_referrals]);
+  }, [profile?.id, profile?.total_shares, profile?.total_referrals, profile?.points]);
 
   useEffect(() => {
     fetchActivityStats();
