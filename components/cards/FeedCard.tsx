@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, lazy, Suspense, useState, type ComponentType } from "react";
+import { memo, lazy, Suspense, useState, useMemo, type ComponentType } from "react";
 import { Lock } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { LikeButton } from "@/components/interactions/LikeButton";
@@ -66,6 +66,12 @@ export const FeedCard = memo(function FeedCard({
   const CardContent = getCardComponent(card.type);
   const [isGameActive, setIsGameActive] = useState(false);
 
+  const shareUrl = useMemo(() => {
+    const base = typeof window !== "undefined" ? window.location.origin : "";
+    const ref = profile?.referral_code;
+    return ref ? `${base}/?card=${card.id}&ref=${ref}` : `${base}/?card=${card.id}`;
+  }, [card.id, profile?.referral_code]);
+
   return (
     <div
       className="feed-card relative animate-fade-in"
@@ -95,7 +101,13 @@ export const FeedCard = memo(function FeedCard({
         {!isGameActive && (
           <div className="mt-auto pt-2 sm:pt-3 flex items-end justify-between flex-shrink-0 h-14 sm:h-16">
             <LikeButton isLiked={isLiked} onLike={onLike} />
-            <ShareButton onShare={onShare} />
+            <ShareButton
+              cardId={card.id}
+              onShare={onShare}
+              shareUrl={shareUrl}
+              shareTitle={card.title}
+              shareText={card.subtitle || "Check out this inspiring content on Soul Sync!"}
+            />
           </div>
         )}
       </div>

@@ -46,6 +46,13 @@ export default function ProfilePage() {
     text: string;
   } | null>(null);
   const [copiedReferral, setCopiedReferral] = useState(false);
+  const [referralCode, setReferralCode] = useState(profile?.referral_code || "");
+  const [referralRewards, setReferralRewards] = useState<{
+    referrerPoints: number;
+    referrerXP: number;
+    newUserPoints: number;
+    newUserXP: number;
+  } | null>(null);
   const [activityStats, setActivityStats] = useState<{
     likes: number;
     completed: number;
@@ -62,31 +69,41 @@ export default function ProfilePage() {
   }, [isAuthenticated, router]);
 
   const fetchActivityStats = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!profile?.id) {
+      setActivityLoading(false);
+      return;
+    }
     setActivityLoading(true);
     try {
       const supabase = createClient();
+
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 8000)
+      );
+
+      const queries = Promise.allSettled([
+        supabase
+          .from("card_interactions")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", profile.id)
+          .eq("interaction_type", "like"),
+        supabase
+          .from("card_interactions")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", profile.id)
+          .eq("interaction_type", "complete"),
+        supabase
+          .from("share_tracking")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", profile.id),
+        supabase
+          .from("profiles")
+          .select("*", { count: "exact", head: true })
+          .eq("referred_by", profile.id),
+      ]);
+
       const [likesRes, completedRes, sharesRes, referralsRes] =
-        await Promise.allSettled([
-          supabase
-            .from("card_interactions")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", profile.id)
-            .eq("interaction_type", "like"),
-          supabase
-            .from("card_interactions")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", profile.id)
-            .eq("interaction_type", "complete"),
-          supabase
-            .from("share_tracking")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", profile.id),
-          supabase
-            .from("profiles")
-            .select("*", { count: "exact", head: true })
-            .eq("referred_by", profile.id),
-        ]);
+        await Promise.race([queries, timeout]) as Awaited<typeof queries>;
 
       setActivityStats({
         likes:
@@ -117,6 +134,27 @@ export default function ProfilePage() {
   useEffect(() => {
     fetchActivityStats();
   }, [fetchActivityStats]);
+
+  // Fetch/generate referral code + reward settings
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    // Always fetch reward settings
+    fetch("/api/referral")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.referralCode) {
+          setReferralCode(data.referralCode);
+          if (!profile.referral_code) {
+            setProfile({ ...profile!, referral_code: data.referralCode });
+          }
+        }
+        if (data?.rewards) {
+          setReferralRewards(data.rewards);
+        }
+      })
+      .catch(() => {});
+  }, [profile?.id]);
 
   useEffect(() => {
     if (profile) {
@@ -256,14 +294,28 @@ export default function ProfilePage() {
   };
 
   const handleCopyReferralCode = async () => {
-    if (!profile?.referral_code) return;
+    if (!referralCode) return;
 
     try {
-      await navigator.clipboard.writeText(profile.referral_code);
+      await navigator.clipboard.writeText(referralCode);
       setCopiedReferral(true);
       setTimeout(() => setCopiedReferral(false), 2000);
     } catch (error) {
       console.error("Failed to copy referral code:", error);
+    }
+  };
+
+  const handleCopyReferralLink = async () => {
+    if (!referralCode) return;
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+      const shareUrl = `${baseUrl}/signup?ref=${referralCode}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedReferral(true);
+      setTimeout(() => setCopiedReferral(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy referral link:", error);
     }
   };
 
@@ -583,26 +635,61 @@ export default function ProfilePage() {
       </motion.div>
 
       {/* Referral Code Card */}
-      {profile.referral_code && (
+      {referralCode && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
           className="glass-card p-4 sm:p-6 mb-4"
         >
-          <h3 className="text-base sm:text-lg font-semibold mb-3">
-            Referral Code
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base sm:text-lg font-semibold">
+              Referral Code
+            </h3>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/20 text-accent">
+              <Target className="w-3.5 h-3.5" />
+              <span className="text-xs font-semibold">
+                {activityStats?.referrals ?? 0} referral{(activityStats?.referrals ?? 0) !== 1 ? "s" : ""}
+              </span>
+            </div>
+          </div>
+
           <p className="text-xs sm:text-sm text-muted-foreground mb-3">
-            Share your code and earn rewards when friends join!
+            Share your code with friends. When they sign up, you both earn rewards!
           </p>
+
+          {/* Reward info */}
+          {referralRewards && (
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="rounded-lg bg-green-500/10 border border-green-500/20 px-3 py-2 text-center">
+                <p className="text-xs text-muted-foreground">You earn</p>
+                <p className="text-sm font-bold text-green-500">
+                  +{referralRewards.referrerPoints} pts
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  +{referralRewards.referrerXP} XP
+                </p>
+              </div>
+              <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-center">
+                <p className="text-xs text-muted-foreground">Friend gets</p>
+                <p className="text-sm font-bold text-blue-500">
+                  +{referralRewards.newUserPoints} pts
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  +{referralRewards.newUserXP} XP
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <div className="flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-lg bg-muted/50 font-mono text-sm sm:text-base">
-              {profile.referral_code}
+              {referralCode}
             </div>
             <button
               onClick={handleCopyReferralCode}
               className="p-2 sm:p-3 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+              title="Copy code"
             >
               {copiedReferral ? (
                 <Check className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -611,6 +698,12 @@ export default function ProfilePage() {
               )}
             </button>
           </div>
+          <button
+            onClick={handleCopyReferralLink}
+            className="w-full mt-2 py-2 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors text-xs sm:text-sm text-muted-foreground"
+          >
+            {copiedReferral ? "Copied!" : "Copy signup link"}
+          </button>
         </motion.div>
       )}
 

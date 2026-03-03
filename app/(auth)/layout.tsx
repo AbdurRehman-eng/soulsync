@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
@@ -9,6 +10,17 @@ export default function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Capture referral code from URL (?ref=CODE)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref");
+      if (ref && ref.trim()) {
+        localStorage.setItem("ss_referral_code", ref.trim().toUpperCase());
+      }
+    } catch {}
+  }, []);
+
   return (
     <div className="app-container h-screen flex flex-col overflow-hidden">
       {/* Header */}

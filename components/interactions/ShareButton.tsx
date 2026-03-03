@@ -5,6 +5,7 @@ import { Share2, Copy, Twitter, Facebook, MessageCircle, X } from "lucide-react"
 import toast from "react-hot-toast";
 
 interface ShareButtonProps {
+  cardId?: string;
   onShare?: () => void;
   shareUrl?: string;
   shareTitle?: string;
@@ -12,6 +13,7 @@ interface ShareButtonProps {
 }
 
 export const ShareButton = memo(function ShareButton({
+  cardId,
   onShare,
   shareUrl,
   shareTitle = "Check out Soul Sync!",
@@ -21,6 +23,18 @@ export const ShareButton = memo(function ShareButton({
 
   const url = shareUrl || (typeof window !== "undefined" ? window.location.href : "");
 
+  const trackShare = useCallback(
+    (platform: string) => {
+      if (!cardId) return;
+      fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId, platform }),
+      }).catch(() => {});
+    },
+    [cardId]
+  );
+
   const handleNativeShare = useCallback(async () => {
     if (navigator.share) {
       try {
@@ -29,6 +43,7 @@ export const ShareButton = memo(function ShareButton({
           text: shareText,
           url: url,
         });
+        trackShare("other");
         onShare?.();
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
@@ -38,39 +53,43 @@ export const ShareButton = memo(function ShareButton({
     } else {
       setShowMenu(true);
     }
-  }, [shareTitle, shareText, url, onShare]);
+  }, [shareTitle, shareText, url, onShare, trackShare]);
 
   const handleCopyLink = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(url);
       toast.success("Link copied to clipboard!");
+      trackShare("copy_link");
       onShare?.();
       setShowMenu(false);
     } catch {
       toast.error("Failed to copy link");
     }
-  }, [url, onShare]);
+  }, [url, onShare, trackShare]);
 
   const shareToTwitter = useCallback(() => {
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(url)}`;
     window.open(twitterUrl, "_blank");
+    trackShare("twitter");
     onShare?.();
     setShowMenu(false);
-  }, [shareText, url, onShare]);
+  }, [shareText, url, onShare, trackShare]);
 
   const shareToFacebook = useCallback(() => {
     const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
     window.open(facebookUrl, "_blank");
+    trackShare("facebook");
     onShare?.();
     setShowMenu(false);
-  }, [url, onShare]);
+  }, [url, onShare, trackShare]);
 
   const shareToWhatsApp = useCallback(() => {
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${url}`)}`;
     window.open(whatsappUrl, "_blank");
+    trackShare("whatsapp");
     onShare?.();
     setShowMenu(false);
-  }, [shareText, url, onShare]);
+  }, [shareText, url, onShare, trackShare]);
 
   return (
     <div className="relative">

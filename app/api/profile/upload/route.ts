@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use service client for storage operations (bypasses RLS)
-    const serviceClient = await createServiceClient();
+    const serviceClient = createServiceClient();
 
     // Get current profile to check for existing avatar
     const { data: profile } = await serviceClient

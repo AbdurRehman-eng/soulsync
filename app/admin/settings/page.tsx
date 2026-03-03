@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Save, Database, Users, FileText, Smile, Zap, Settings as SettingsIcon, Loader2 } from "lucide-react";
+import { Save, Database, Users, FileText, Smile, Zap, Settings as SettingsIcon, Loader2, Gift } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 interface SystemStats {
@@ -36,6 +36,12 @@ export default function SettingsPage() {
     const [weekendBonusXP, setWeekendBonusXP] = useState(25);
     const [sharePoints, setSharePoints] = useState(5);
     const [shareXP, setShareXP] = useState(10);
+
+    // Referral Rewards
+    const [referralReferrerPoints, setReferralReferrerPoints] = useState(25);
+    const [referralReferrerXP, setReferralReferrerXP] = useState(50);
+    const [referralNewUserPoints, setReferralNewUserPoints] = useState(10);
+    const [referralNewUserXP, setReferralNewUserXP] = useState(20);
 
     // Streak Milestones
     const [streak3Points, setStreak3Points] = useState(25);
@@ -107,6 +113,10 @@ export default function SettingsPage() {
                 setWeekendBonusXP(data.settings.weekend_bonus_xp || 25);
                 setSharePoints(data.settings.share_points || 5);
                 setShareXP(data.settings.share_xp || 10);
+                setReferralReferrerPoints(data.settings.referral_referrer_points || 25);
+                setReferralReferrerXP(data.settings.referral_referrer_xp || 50);
+                setReferralNewUserPoints(data.settings.referral_new_user_points || 10);
+                setReferralNewUserXP(data.settings.referral_new_user_xp || 20);
                 setStreak3Points(data.settings.streak_3_days_points || 25);
                 setStreak7Points(data.settings.streak_7_days_points || 50);
                 setStreak14Points(data.settings.streak_14_days_points || 100);
@@ -136,6 +146,10 @@ export default function SettingsPage() {
                         weekend_bonus_xp: weekendBonusXP,
                         share_points: sharePoints,
                         share_xp: shareXP,
+                        referral_referrer_points: referralReferrerPoints,
+                        referral_referrer_xp: referralReferrerXP,
+                        referral_new_user_points: referralNewUserPoints,
+                        referral_new_user_xp: referralNewUserXP,
                         streak_3_days_points: streak3Points,
                         streak_7_days_points: streak7Points,
                         streak_14_days_points: streak14Points,
@@ -403,6 +417,75 @@ export default function SettingsPage() {
                                         />
                                         <p className="text-xs text-[var(--muted-foreground)] mt-1">
                                             XP for sharing content
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Referral Rewards */}
+                            <div>
+                                <h5 className="font-semibold text-[var(--foreground)] mb-3 flex items-center gap-2">
+                                    <Gift size={16} className="text-green-400" />
+                                    Referral Rewards
+                                </h5>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
+                                            Referrer Points
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={referralReferrerPoints}
+                                            onChange={(e) => setReferralReferrerPoints(parseInt(e.target.value) || 0)}
+                                            className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]"
+                                        />
+                                        <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                                            Points the referrer earns per successful referral
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
+                                            Referrer XP
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={referralReferrerXP}
+                                            onChange={(e) => setReferralReferrerXP(parseInt(e.target.value) || 0)}
+                                            className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]"
+                                        />
+                                        <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                                            XP the referrer earns per successful referral
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
+                                            New User Points
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={referralNewUserPoints}
+                                            onChange={(e) => setReferralNewUserPoints(parseInt(e.target.value) || 0)}
+                                            className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]"
+                                        />
+                                        <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                                            Welcome bonus points for the new user who used a referral
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2 text-[var(--foreground)]">
+                                            New User XP
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={referralNewUserXP}
+                                            onChange={(e) => setReferralNewUserXP(parseInt(e.target.value) || 0)}
+                                            className="w-full px-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--foreground)]"
+                                        />
+                                        <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                                            Welcome bonus XP for the new user who used a referral
                                         </p>
                                     </div>
                                 </div>

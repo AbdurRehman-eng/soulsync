@@ -2,15 +2,14 @@
 
 import { memo, useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Zap, Flame, User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
+import { createClient } from "@/lib/supabase/client";
 
 export const Header = memo(function Header() {
   const { profile, isAuthenticated, loading, logout } = useUserStore();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -28,12 +27,26 @@ export const Header = memo(function Header() {
   const handleLogout = async () => {
     setIsDropdownOpen(false);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      logout();
-      router.push("/login");
+      const supabase = createClient();
+      // Use 'local' scope to only clear client-side tokens without hitting
+      // GoTrue (which fails if the refresh token is already invalid)
+      await supabase.auth.signOut({ scope: "local" });
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error("Client signOut error:", error);
     }
+
+    // Always clear server-side cookies, even if client signOut failed
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {}
+
+    // Clear Zustand persisted state
+    logout();
+
+    // Hard navigation ensures the browser applies the Set-Cookie headers
+    // from the logout response. router.push() would trigger middleware
+    // which may still see stale cookies during a soft navigation.
+    window.location.href = "/login";
   };
 
   return (

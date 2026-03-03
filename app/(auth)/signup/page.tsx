@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Mail, Lock, User, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Mail, Lock, User, Eye, EyeOff, Loader2, Gift } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import toast from "react-hot-toast";
 
@@ -17,6 +17,23 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
+
+  // Load referral code from URL param or localStorage
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref");
+      if (ref && ref.trim()) {
+        const code = ref.trim().toUpperCase();
+        setReferralCode(code);
+        localStorage.setItem("ss_referral_code", code);
+      } else {
+        const stored = localStorage.getItem("ss_referral_code");
+        if (stored) setReferralCode(stored);
+      }
+    } catch {}
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,28 +54,72 @@ export default function SignupPage() {
     }
 
     setLoading(true);
-    const supabase = createClient();
 
-    // Sign up the user (profile is auto-created by database trigger)
-    const { error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username,
-          display_name: username,
+    try {
+      // Server-side username check (bypasses RLS)
+      const checkRes = await fetch("/api/check-username", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      const checkData = await checkRes.json();
+
+      if (!checkData.available) {
+        toast.error("Username is already taken. Please choose another one.");
+        setLoading(false);
+        return;
+      }
+
+      const supabase = createClient();
+
+      const { data: signUpData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username,
+            display_name: username,
+          },
         },
-      },
-    });
+      });
 
-    if (authError) {
-      toast.error(authError.message);
+      if (authError) {
+        if (authError.status === 500 || authError.message?.includes("500")) {
+          toast.error(
+            "Unable to create account. Please try a different username or email."
+          );
+        } else if (authError.message?.includes("already registered")) {
+          toast.error("This email is already registered. Try logging in instead.");
+        } else {
+          toast.error(authError.message);
+        }
+        return;
+      }
+
+      // Store referral code for processing (on first login if email confirmation required)
+      if (referralCode.trim()) {
+        localStorage.setItem("ss_referral_code", referralCode.trim());
+      }
+
+      // If email confirmation is disabled and we have a session, process referral now
+      if (signUpData?.session && referralCode.trim()) {
+        fetch("/api/referral", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ referralCode: referralCode.trim() }),
+        })
+          .then(() => localStorage.removeItem("ss_referral_code"))
+          .catch(() => {});
+      }
+
+      toast.success("Account created! Please check your email to verify.");
+      router.push("/login");
+    } catch (error) {
+      console.error("Signup error:", error);
+      toast.error("Something went wrong. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    toast.success("Account created! Please check your email to verify.");
-    router.push("/login");
   };
 
   return (
@@ -147,6 +208,33 @@ export default function SignupPage() {
           <p className="text-xs text-muted-foreground mt-1">
             At least 6 characters
           </p>
+        </div>
+
+        {/* Referral Code (optional) */}
+        <div>
+          <label className="block text-sm font-medium mb-2">
+            Referral Code{" "}
+            <span className="text-muted-foreground font-normal">(optional)</span>
+          </label>
+          <div className="relative">
+            <Gift className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <input
+              type="text"
+              value={referralCode}
+              onChange={(e) =>
+                setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
+              }
+              placeholder="e.g. SS1A2B3C4D"
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-background border border-border focus:border-primary focus:outline-none transition-colors placeholder:text-muted-foreground text-black dark:text-white"
+              maxLength={12}
+            />
+          </div>
+          {referralCode && (
+            <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+              <Gift className="w-3 h-3" />
+              You&apos;ll get bonus points when you sign up!
+            </p>
+          )}
         </div>
 
         {/* Terms */}
