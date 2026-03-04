@@ -139,8 +139,12 @@ export default function ProfilePage() {
       .then((data) => {
         if (data?.referralCode) {
           setReferralCode(data.referralCode);
-          if (!profile.referral_code) {
-            setProfile({ ...profile!, referral_code: data.referralCode });
+          // Update profile with referral data from server
+          const updates: Record<string, any> = {};
+          if (!profile.referral_code) updates.referral_code = data.referralCode;
+          if (data.totalReferrals !== undefined) updates.total_referrals = data.totalReferrals;
+          if (Object.keys(updates).length > 0) {
+            setProfile({ ...profile!, ...updates });
           }
         }
         if (data?.rewards) {

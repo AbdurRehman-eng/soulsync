@@ -120,86 +120,62 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update referrer's total_referrals and reward them
-    const newTotalReferrals = (referrer.total_referrals || 0) + 1;
-    const { error: updateReferrerError } = await serviceClient
+    // Use the DB's add_points / add_xp RPC functions for atomic increments.
+    // These do `points = points + amount` in SQL (no read-modify-write race)
+    // and also insert the transaction log entry automatically.
+
+    // --- Reward the referrer ---
+    const { error: refPtErr } = await serviceClient.rpc("add_points", {
+      p_user_id: referrer.id,
+      p_amount: referrerPoints,
+      p_source: "referral",
+      p_description: "Referral reward — new user signed up with your code",
+    });
+    if (refPtErr) console.error("Referrer add_points error:", refPtErr);
+
+    const { error: refXpErr } = await serviceClient.rpc("add_xp", {
+      p_user_id: referrer.id,
+      p_amount: referrerXP,
+      p_source: "referral",
+      p_description: "Referral reward — new user signed up with your code",
+    });
+    if (refXpErr) console.error("Referrer add_xp error:", refXpErr);
+
+    // Increment total_referrals atomically via raw update
+    const { error: refCountErr } = await serviceClient
       .from("profiles")
-      .update({
-        total_referrals: newTotalReferrals,
-        points: (referrer.points || 0) + referrerPoints,
-        xp: (referrer.xp || 0) + referrerXP,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ total_referrals: (referrer.total_referrals || 0) + 1 })
       .eq("id", referrer.id);
+    if (refCountErr) console.error("Referrer total_referrals error:", refCountErr);
 
-    if (updateReferrerError) {
-      console.error("Failed to update referrer:", updateReferrerError);
-    }
-
-    // Log referrer's reward transactions
-    await serviceClient.from("points_transactions").insert({
-      user_id: referrer.id,
-      amount: referrerPoints,
-      source: "referral",
-      description: "Referral reward — new user signed up with your code",
-      multiplier: 1.0,
+    // --- Reward the new user ---
+    const { error: newPtErr } = await serviceClient.rpc("add_points", {
+      p_user_id: user.id,
+      p_amount: newUserPoints,
+      p_source: "referral",
+      p_description: "Welcome bonus — signed up with a referral code",
     });
+    if (newPtErr) console.error("New user add_points error:", newPtErr);
 
-    await serviceClient.from("xp_transactions").insert({
-      user_id: referrer.id,
-      amount: referrerXP,
-      source: "referral",
-      description: "Referral reward — new user signed up with your code",
+    const { error: newXpErr } = await serviceClient.rpc("add_xp", {
+      p_user_id: user.id,
+      p_amount: newUserXP,
+      p_source: "referral",
+      p_description: "Welcome bonus — signed up with a referral code",
     });
+    if (newXpErr) console.error("New user add_xp error:", newXpErr);
 
-    // Give the new user a welcome bonus
-    const { data: newProfile } = await serviceClient
-      .from("profiles")
-      .select("points, xp")
-      .eq("id", user.id)
-      .single();
-
-    if (newProfile) {
-      const { error: newUserUpdateError } = await serviceClient
-        .from("profiles")
-        .update({
-          points: (newProfile.points || 0) + newUserPoints,
-          xp: (newProfile.xp || 0) + newUserXP,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id);
-
-      if (newUserUpdateError) {
-        console.error("Failed to update new user points:", newUserUpdateError);
-      }
-
-      await serviceClient.from("points_transactions").insert({
-        user_id: user.id,
-        amount: newUserPoints,
-        source: "referral",
-        description: "Welcome bonus — signed up with a referral code",
-        multiplier: 1.0,
-      });
-
-      await serviceClient.from("xp_transactions").insert({
-        user_id: user.id,
-        amount: newUserXP,
-        source: "referral",
-        description: "Welcome bonus — signed up with a referral code",
-      });
-    } else {
-      console.error("Could not fetch new user profile for welcome bonus");
-    }
-
-    // Log in referral_tracking table (if it exists)
-    await serviceClient.from("referral_tracking").insert({
+    // Log in referral_tracking table (best-effort, don't block response)
+    serviceClient.from("referral_tracking").insert({
       referrer_id: referrer.id,
       referred_id: user.id,
       referral_code: trimmedCode,
       referrer_points_awarded: referrerPoints,
       referrer_xp_awarded: referrerXP,
-      referred_points_awarded: newProfile ? newUserPoints : 0,
-      referred_xp_awarded: newProfile ? newUserXP : 0,
+      referred_points_awarded: newUserPoints,
+      referred_xp_awarded: newUserXP,
+    }).then(({ error }) => {
+      if (error) console.error("referral_tracking insert error:", error);
     });
 
     return NextResponse.json({
