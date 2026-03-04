@@ -66,9 +66,9 @@ export default function SettingsPage() {
     try {
       const supabase = createClient();
 
-      const withTimeout = <T,>(promise: Promise<T>, ms = 8000): Promise<T> =>
+      const withTimeout = <T,>(promise: PromiseLike<T>, ms = 8000): Promise<T> =>
         Promise.race([
-          promise,
+          Promise.resolve(promise),
           new Promise<T>((_, reject) =>
             setTimeout(() => reject(new Error("timeout")), ms)
           ),

@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Log in referral_tracking table (if it exists)
-    serviceClient.from("referral_tracking").insert({
+    await serviceClient.from("referral_tracking").insert({
       referrer_id: referrer.id,
       referred_id: user.id,
       referral_code: trimmedCode,
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
       referrer_xp_awarded: referrerXP,
       referred_points_awarded: newProfile ? newUserPoints : 0,
       referred_xp_awarded: newProfile ? newUserXP : 0,
-    }).then(() => {}).catch(() => {});
+    });
 
     return NextResponse.json({
       success: true,
