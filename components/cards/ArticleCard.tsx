@@ -23,7 +23,7 @@ export function ArticleCard({ card }: ArticleCardProps) {
     <>
       <div className="min-h-full flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="p-1.5 sm:p-2 rounded-lg bg-blue-500/20">
               <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
@@ -40,7 +40,7 @@ export function ArticleCard({ card }: ArticleCardProps) {
 
         {/* Featured image */}
         {(image_url || card.thumbnail_url) && (
-          <div className="relative h-24 sm:h-28 rounded-lg overflow-hidden mb-2">
+          <div className="relative h-24 sm:h-28 rounded-lg overflow-hidden mb-2 flex-shrink-0">
             <Image
               src={image_url || card.thumbnail_url!}
               alt={card.title}
@@ -51,36 +51,34 @@ export function ArticleCard({ card }: ArticleCardProps) {
           </div>
         )}
 
-        {/* Title */}
-        <h3 className="text-base sm:text-lg font-bold mb-1 line-clamp-2">{card.title}</h3>
-
-        {/* Subtitle */}
-        {card.subtitle && (
-          <p className="text-[11px] sm:text-xs text-accent mb-1">{card.subtitle}</p>
-        )}
-
-        {/* Excerpt */}
-        <p className="text-muted-foreground text-xs leading-snug line-clamp-2 flex-1">
-          {excerpt}
-        </p>
-
-        {/* Read more button */}
-        {body && body.length > maxLength && (
-          <motion.button
-            onClick={(e) => { e.stopPropagation(); setShowModal(true); }}
-            className="text-xs sm:text-sm text-primary mt-2 hover:underline text-left"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            Read full →
-          </motion.button>
-        )}
-
-        {/* Author - always visible */}
-        {author && (
-          <p className="text-xs text-muted-foreground mt-auto pt-1">By {author}</p>
-        )}
+        {/* Article content — vertically centered; author at bottom */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 min-h-0" aria-hidden />
+          <div className="flex-shrink-0">
+            <h3 className="text-base sm:text-lg font-bold mb-1 line-clamp-2">{card.title}</h3>
+            {card.subtitle && (
+              <p className="text-[11px] sm:text-xs text-accent mb-1">{card.subtitle}</p>
+            )}
+            <p className="text-muted-foreground text-xs leading-snug line-clamp-2">
+              {excerpt}
+            </p>
+            {body && body.length > maxLength && (
+              <motion.button
+                onClick={(e) => { e.stopPropagation(); setShowModal(true); }}
+                className="text-xs sm:text-sm text-primary mt-2 hover:underline text-left"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                Read full →
+              </motion.button>
+            )}
+          </div>
+          <div className="flex-1 min-h-0" aria-hidden />
+          {author && (
+            <p className="text-xs text-muted-foreground pt-1 flex-shrink-0">By {author}</p>
+          )}
+        </div>
       </div>
 
       <ReadMoreModal

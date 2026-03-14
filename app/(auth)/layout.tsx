@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
+import { BottomNav } from "@/components/navigation/BottomNav";
 
 export default function AuthLayout({
   children,
@@ -37,12 +38,14 @@ export default function AuthLayout({
         </Link>
       </header>
 
-      {/* Content - scrollable when needed */}
-      <main className="relative z-10 flex-1 min-h-0 overflow-y-auto px-4 py-6">
-        <div className="flex flex-col justify-center min-h-full">
+      {/* Content - scrollable; bottom padding keeps form and "Sign up" link above the nav */}
+      <main className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroll-area px-4 pt-6 pb-nav-clearance">
+        <div className="flex flex-col min-h-0 pb-8">
           {children}
         </div>
       </main>
+
+      <BottomNav />
 
       {/* Decorative background */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">

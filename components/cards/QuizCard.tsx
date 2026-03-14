@@ -633,10 +633,10 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
           </div>
         </div>
 
-        {/* Quiz preview */}
-        <div className="flex-1 flex flex-col justify-between items-center text-center min-h-0 px-2 py-0.5 gap-1.5">
-          <div className="flex flex-col items-center text-center gap-1.5 max-w-xs min-h-0">
-            {/* Mascot replaces trophy */}
+        {/* Quiz preview — text block vertically centered, button at bottom */}
+        <div className="flex-1 flex flex-col items-center text-center min-h-0 px-2 py-0.5">
+          <div className="flex-1 min-h-0" aria-hidden />
+          <div className="flex flex-col items-center text-center gap-1.5 max-w-xs flex-shrink-0">
             <div className="mb-0">
               <Mascot
                 state="power-up"
@@ -645,20 +645,14 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
                 speechText="Ready to test your knowledge?"
               />
             </div>
-
-            {/* Title */}
             <h3 className="text-[13px] sm:text-base font-bold leading-snug line-clamp-2">
               {card.title}
             </h3>
-
-            {/* Description / subtitle */}
             {description && (
               <p className="text-[10px] sm:text-xs text-muted-foreground leading-snug line-clamp-2">
                 {descriptionPreview}
               </p>
             )}
-
-            {/* Read more for long text */}
             {isLongDescription && (
               <button
                 type="button"
@@ -671,20 +665,17 @@ export function QuizCard({ card, isLocked }: QuizCardProps) {
                 Read more →
               </button>
             )}
-
-            {/* Points indicator */}
             {card.points_reward > 0 && (
               <div className="mt-0.5 px-2.5 py-0.5 rounded-full bg-accent/20 text-accent text-[10px] sm:text-xs font-medium">
                 Earn +{card.points_reward} pts
               </div>
             )}
           </div>
-
-          {/* Take Quiz button */}
+          <div className="flex-1 min-h-0" aria-hidden />
           <motion.button
             onClick={handleStartPreview}
             disabled={isLocked}
-            className="mb-0.5 flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[13px] sm:text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+            className="mt-1 flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[13px] sm:text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             whileTap={{ scale: 0.95 }}
           >
             Take Quiz

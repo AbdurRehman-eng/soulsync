@@ -2,18 +2,21 @@
 
 import { memo, useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Zap, Flame, User, Settings, LogOut, ChevronDown } from "lucide-react";
+import { Zap, Flame, User, Settings, LogOut, ChevronDown, Loader2 } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { createClient } from "@/lib/supabase/client";
+
+const LOGOUT_REDIRECT_MS = 4000;
 
 export const Header = memo(function Header() {
   const { profile, isAuthenticated, loading, logout } = useUserStore();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside (only if not logging out)
   useEffect(() => {
-    if (!isDropdownOpen) return;
+    if (!isDropdownOpen || loggingOut) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
@@ -22,31 +25,35 @@ export const Header = memo(function Header() {
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isDropdownOpen]);
+  }, [isDropdownOpen, loggingOut]);
 
-  const handleLogout = async () => {
-    setIsDropdownOpen(false);
-    try {
-      const supabase = createClient();
-      // Use 'local' scope to only clear client-side tokens without hitting
-      // GoTrue (which fails if the refresh token is already invalid)
-      await supabase.auth.signOut({ scope: "local" });
-    } catch (error) {
-      console.error("Client signOut error:", error);
-    }
+  const handleLogout = () => {
+    setLoggingOut(true);
+    // Keep dropdown open so user sees "Logging out..." feedback
 
-    // Always clear server-side cookies, even if client signOut failed
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch {}
+    const doRedirect = () => {
+      logout();
+      window.location.href = "/login";
+    };
 
-    // Clear Zustand persisted state
-    logout();
+    // Fallback: ensure we always redirect even if API/client hangs
+    const timeoutId = setTimeout(doRedirect, LOGOUT_REDIRECT_MS);
 
-    // Hard navigation ensures the browser applies the Set-Cookie headers
-    // from the logout response. router.push() would trigger middleware
-    // which may still see stale cookies during a soft navigation.
-    window.location.href = "/login";
+    (async () => {
+      try {
+        const supabase = createClient();
+        await supabase.auth.signOut({ scope: "local" });
+      } catch (error) {
+        console.error("Client signOut error:", error);
+      }
+      try {
+        await fetch("/api/auth/logout", { method: "POST" });
+      } catch {
+        // ignore
+      }
+      clearTimeout(timeoutId);
+      doRedirect();
+    })();
   };
 
   return (
@@ -101,8 +108,8 @@ export const Header = memo(function Header() {
                       {profile.is_admin && (
                         <Link
                           href="/admin"
-                          onClick={() => setIsDropdownOpen(false)}
-                          className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
+                          onClick={() => !loggingOut && setIsDropdownOpen(false)}
+                          className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${loggingOut ? "pointer-events-none opacity-50" : "hover:bg-muted/50"}`}
                         >
                           <Settings className="w-4 h-4 text-purple-500" />
                           <span>Admin</span>
@@ -112,8 +119,8 @@ export const Header = memo(function Header() {
                       {/* Profile option */}
                       <Link
                         href="/profile"
-                        onClick={() => setIsDropdownOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
+                        onClick={() => !loggingOut && setIsDropdownOpen(false)}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${loggingOut ? "pointer-events-none opacity-50" : "hover:bg-muted/50"}`}
                       >
                         <User className="w-4 h-4 text-primary" />
                         <span>Profile</span>
@@ -121,11 +128,22 @@ export const Header = memo(function Header() {
 
                       {/* Logout option */}
                       <button
+                        type="button"
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors text-red-500"
+                        disabled={loggingOut}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors text-red-500 disabled:opacity-100 disabled:cursor-wait"
                       >
-                        <LogOut className="w-4 h-4" />
-                        <span>Logout</span>
+                        {loggingOut ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                            <span>Logging out…</span>
+                          </>
+                        ) : (
+                          <>
+                            <LogOut className="w-4 h-4" />
+                            <span>Logout</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   )}
@@ -148,8 +166,10 @@ export const Header = memo(function Header() {
             </>
           ) : (
             <>
-              {/* Logged out state */}
-              <div className="flex-1" />
+              {/* Logged out state — site name left, auth actions right */}
+              <Link href="/" className="font-bold text-lg sm:text-xl text-gradient active:opacity-90 transition-opacity">
+                Soul Sync
+              </Link>
               <div className="flex items-center gap-2">
                 <Link href="/login" className="px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-full hover:bg-muted/50 transition-colors active:scale-95">
                   Log in

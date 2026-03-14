@@ -88,13 +88,14 @@ export const FeedCard = memo(function FeedCard({
         </div>
       )}
 
-      {/* Card content */}
-      <div className="relative h-full flex flex-col p-2 sm:p-4 z-10 overflow-hidden">
-        {/* Content area — scrollable so long content isn't clipped */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col justify-center min-h-0">
-          <Suspense fallback={<CardContentSkeleton />}>
-            <CardContent card={card} isLocked={isLocked} onPlayingChange={setIsGameActive} />
-          </Suspense>
+      {/* Card content — p-4 clears rounded-2xl corners so top-left/right aren't clipped */}
+      <div className="relative h-full flex flex-col p-4 z-10 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden scrollbar-hide flex flex-col justify-center min-h-0">
+          <div className="min-w-0 w-full flex flex-col">
+            <Suspense fallback={<CardContentSkeleton />}>
+              <CardContent card={card} isLocked={isLocked} onPlayingChange={setIsGameActive} />
+            </Suspense>
+          </div>
         </div>
 
         {/* Bottom actions - hidden when a game is actively playing */}
