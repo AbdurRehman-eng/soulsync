@@ -1,8 +1,10 @@
 "use client";
 
 import { memo, useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUserStore } from "@/stores/userStore";
 
 interface LikeButtonProps {
   isLiked?: boolean;
@@ -17,18 +19,24 @@ export const LikeButton = memo(function LikeButton({
   showCount = false,
   count = 0,
 }: LikeButtonProps) {
+  const pathname = usePathname();
+  const { isAuthenticated } = useUserStore();
   const [showHearts, setShowHearts] = useState(false);
 
   const handleLike = useCallback(() => {
+    if (!isAuthenticated) {
+      const redirect = encodeURIComponent(pathname || "/");
+      window.location.href = `/login?redirect=${redirect}`;
+      return;
+    }
     const willBeLiked = !isLiked;
     onLike?.();
 
     if (willBeLiked) {
       setShowHearts(true);
-      // Clean up after animation
       setTimeout(() => setShowHearts(false), 1200);
     }
-  }, [isLiked, onLike]);
+  }, [isAuthenticated, isLiked, onLike, pathname]);
 
   return (
     <div className="relative">

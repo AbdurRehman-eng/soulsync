@@ -183,7 +183,13 @@ export default function MorePage() {
                   </Link>
                 ) : (
                   <button
-                    onClick={item.action}
+                    onClick={() => {
+                      if (item.label === "Theme" && !isAuthenticated) {
+                        router.push("/login?redirect=" + encodeURIComponent("/more"));
+                        return;
+                      }
+                      item.action?.();
+                    }}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
                   >
                     <item.icon className="w-5 h-5 text-muted-foreground" />
